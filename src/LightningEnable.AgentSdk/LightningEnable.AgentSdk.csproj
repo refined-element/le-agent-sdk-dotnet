@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>LightningEnable.AgentSdk</PackageId>
+    <Version>0.1.0</Version>
+    <Description>SDK for Lightning Enable Agent Service Agreements on Nostr</Description>
+    <Authors>Lightning Enable</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/ArcadeLabsInc/lightning-enable-agent-sdk-dotnet</RepositoryUrl>
+    <PackageTags>nostr;lightning;l402;agents;bitcoin</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NBitcoin.Secp256k1" Version="3.2.0" />
+  </ItemGroup>
+
+</Project>
