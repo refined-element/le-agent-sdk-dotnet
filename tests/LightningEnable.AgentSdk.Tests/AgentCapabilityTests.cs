@@ -111,4 +111,74 @@ public class AgentCapabilityTests
     {
         Assert.Equal(38401, AgentCapability.Kind);
     }
+
+    [Fact]
+    public void Negotiable_DefaultsToTrue()
+    {
+        var cap = new AgentCapability();
+        Assert.True(cap.Negotiable);
+        Assert.Null(cap.MinPriceSats);
+        var tags = cap.ToNostrTags();
+        Assert.Contains(tags, t => t[0] == "negotiable" && t[1] == "true");
+    }
+
+    [Fact]
+    public void Negotiable_False_EmitsCorrectTag()
+    {
+        var cap = new AgentCapability { Negotiable = false };
+        var tags = cap.ToNostrTags();
+        Assert.Contains(tags, t => t[0] == "negotiable" && t[1] == "false");
+    }
+
+    [Fact]
+    public void Negotiable_Floor_EmitsCorrectTag()
+    {
+        var cap = new AgentCapability { Negotiable = true, MinPriceSats = 30000 };
+        var tags = cap.ToNostrTags();
+        Assert.Contains(tags, t => t[0] == "negotiable" && t[1] == "floor" && t[2] == "30000");
+    }
+
+    [Fact]
+    public void Negotiable_False_ParsedFromEvent()
+    {
+        var json = """
+        {
+            "id": "n1",
+            "pubkey": "pk",
+            "created_at": 1,
+            "kind": 38401,
+            "content": "",
+            "tags": [
+                ["d", "svc"],
+                ["negotiable", "false"]
+            ]
+        }
+        """;
+        var element = JsonDocument.Parse(json).RootElement;
+        var cap = AgentCapability.FromNostrEvent(element);
+        Assert.False(cap.Negotiable);
+        Assert.Null(cap.MinPriceSats);
+    }
+
+    [Fact]
+    public void Negotiable_Floor_ParsedFromEvent()
+    {
+        var json = """
+        {
+            "id": "n2",
+            "pubkey": "pk",
+            "created_at": 1,
+            "kind": 38401,
+            "content": "",
+            "tags": [
+                ["d", "svc"],
+                ["negotiable", "floor", "10000"]
+            ]
+        }
+        """;
+        var element = JsonDocument.Parse(json).RootElement;
+        var cap = AgentCapability.FromNostrEvent(element);
+        Assert.True(cap.Negotiable);
+        Assert.Equal(10000, cap.MinPriceSats);
+    }
 }

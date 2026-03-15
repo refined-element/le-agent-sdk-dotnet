@@ -19,6 +19,8 @@ public class AgentCapability
     public string Endpoint { get; set; } = string.Empty;
     public string DTag { get; set; } = string.Empty;
     public List<string> Categories { get; set; } = new();
+    public bool Negotiable { get; set; } = true;
+    public int? MinPriceSats { get; set; }
 
     public const int Kind = 38401;
 
@@ -75,6 +77,22 @@ public class AgentCapability
                     case "t":
                         cap.Categories.Add(tagArray[1]);
                         break;
+                    case "negotiable":
+                        if (tagArray[1] == "false")
+                        {
+                            cap.Negotiable = false;
+                        }
+                        else if (tagArray[1] == "true")
+                        {
+                            cap.Negotiable = true;
+                        }
+                        else if (tagArray[1] == "floor" && tagArray.Length > 2)
+                        {
+                            cap.Negotiable = true;
+                            if (int.TryParse(tagArray[2], out var floor))
+                                cap.MinPriceSats = floor;
+                        }
+                        break;
                 }
             }
         }
@@ -106,6 +124,13 @@ public class AgentCapability
 
         foreach (var cat in Categories)
             tags.Add(new[] { "t", cat });
+
+        if (MinPriceSats.HasValue)
+            tags.Add(new[] { "negotiable", "floor", MinPriceSats.Value.ToString() });
+        else if (!Negotiable)
+            tags.Add(new[] { "negotiable", "false" });
+        else
+            tags.Add(new[] { "negotiable", "true" });
 
         return tags.ToArray();
     }
