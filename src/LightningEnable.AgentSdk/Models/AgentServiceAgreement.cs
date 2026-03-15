@@ -60,7 +60,7 @@ public class AgentServiceAgreement
                         if (int.TryParse(tagArray[1], out var price))
                             agreement.PriceSats = price;
                         break;
-                    case "l402_endpoint":
+                    case "l402":
                         agreement.L402Endpoint = tagArray[1];
                         break;
                     case "status":
@@ -89,7 +89,7 @@ public class AgentServiceAgreement
         };
 
         if (!string.IsNullOrEmpty(L402Endpoint))
-            tags.Add(new[] { "l402_endpoint", L402Endpoint });
+            tags.Add(new[] { "l402", L402Endpoint });
 
         if (ExpiresAt > 0)
             tags.Add(new[] { "expiration", ExpiresAt.ToString() });

@@ -20,7 +20,7 @@ public class AgentServiceAgreementTests
                 ["p", "consumer-pub"],
                 ["p", "provider-pub"],
                 ["price", "250"],
-                ["l402_endpoint", "https://pay.example.com/settle"],
+                ["l402", "https://pay.example.com/settle"],
                 ["status", "active"],
                 ["expiration", "1700086400"]
             ]
@@ -56,7 +56,7 @@ public class AgentServiceAgreementTests
 
         var tags = agr.ToNostrTags();
 
-        Assert.Contains(tags, t => t[0] == "l402_endpoint" && t[1] == "https://l402.example.com");
+        Assert.Contains(tags, t => t[0] == "l402" && t[1] == "https://l402.example.com");
         Assert.Contains(tags, t => t[0] == "expiration" && t[1] == "1700090000");
         Assert.Contains(tags, t => t[0] == "price" && t[1] == "100");
     }
