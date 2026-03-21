@@ -42,7 +42,7 @@ public partial class L402Client : IDisposable
     /// </summary>
     public async Task<L402AccessResult> AccessAsync(string url, CancellationToken ct = default)
     {
-        var response = await _httpClient.GetAsync(url, ct);
+        using var response = await _httpClient.GetAsync(url, ct);
 
         if (response.StatusCode == HttpStatusCode.PaymentRequired)
         {
@@ -72,7 +72,7 @@ public partial class L402Client : IDisposable
     public async Task<L402AccessResult> AccessWithProofAsync(
         string url, string? macaroon, string preimage, CancellationToken ct = default)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
 
         if (string.IsNullOrEmpty(macaroon))
         {
@@ -88,7 +88,7 @@ public partial class L402Client : IDisposable
             request.Headers.Authorization = new AuthenticationHeaderValue("L402", $"{macaroon}:{preimage}");
         }
 
-        var response = await _httpClient.SendAsync(request, ct);
+        using var response = await _httpClient.SendAsync(request, ct);
         var content = await response.Content.ReadAsStringAsync(ct);
 
         return new L402AccessResult
