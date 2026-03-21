@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace LightningEnable.AgentSdk.L402;
 
@@ -8,8 +8,17 @@ namespace LightningEnable.AgentSdk.L402;
 /// Consumer-side L402 client. Handles requesting resources protected by L402,
 /// detecting 402 challenges, and retrying with payment proof.
 /// </summary>
-public class L402Client : IDisposable
+public partial class L402Client : IDisposable
 {
+    private static readonly Regex PreimageRegex = GetPreimageRegex();
+    private static readonly Regex AuthParamRegex = GetAuthParamRegex();
+
+    [GeneratedRegex(@"^[a-fA-F0-9]+$")]
+    private static partial Regex GetPreimageRegex();
+
+    [GeneratedRegex(@"([!#$%&'*+\-.^_`|~0-9A-Za-z]+)\s*=\s*(?:""([^""]*)""|(\S+?))\s*(?:,|$)")]
+    private static partial Regex GetAuthParamRegex();
+
     private readonly HttpClient _httpClient;
     private readonly bool _ownsClient;
 
@@ -33,7 +42,7 @@ public class L402Client : IDisposable
     /// </summary>
     public async Task<L402AccessResult> AccessAsync(string url, CancellationToken ct = default)
     {
-        var response = await _httpClient.GetAsync(url, ct);
+        using var response = await _httpClient.GetAsync(url, ct);
 
         if (response.StatusCode == HttpStatusCode.PaymentRequired)
         {
@@ -57,14 +66,29 @@ public class L402Client : IDisposable
 
     /// <summary>
     /// Access an L402-protected endpoint with a pre-paid macaroon and preimage.
+    /// When macaroon is null or empty, uses the MPP Payment authorization scheme
+    /// instead of the L402 scheme.
     /// </summary>
     public async Task<L402AccessResult> AccessWithProofAsync(
-        string url, string macaroon, string preimage, CancellationToken ct = default)
+        string url, string? macaroon, string preimage, CancellationToken ct = default)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("L402", $"{macaroon}:{preimage}");
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
 
-        var response = await _httpClient.SendAsync(request, ct);
+        if (string.IsNullOrEmpty(macaroon))
+        {
+            // MPP mode — Payment scheme with preimage only
+            ValidatePreimage(preimage);
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Payment",
+                $"method=\"lightning\", preimage=\"{preimage}\"");
+        }
+        else
+        {
+            // L402 mode — macaroon:preimage
+            request.Headers.Authorization = new AuthenticationHeaderValue("L402", $"{macaroon}:{preimage}");
+        }
+
+        using var response = await _httpClient.SendAsync(request, ct);
         var content = await response.Content.ReadAsStringAsync(ct);
 
         return new L402AccessResult
@@ -75,10 +99,38 @@ public class L402Client : IDisposable
         };
     }
 
+    /// <summary>
+    /// Validates that a preimage is a safe hex string of the expected length.
+    /// Lightning payment preimages are 32 bytes (64 hex characters).
+    /// Rejects empty, non-hex, odd-length, and incorrectly sized values to prevent
+    /// hard-to-diagnose server rejections or oversized header failures.
+    /// </summary>
+    private static void ValidatePreimage(string preimage)
+    {
+        if (string.IsNullOrEmpty(preimage))
+            throw new ArgumentException("Preimage must not be null or empty.", nameof(preimage));
+
+        if (!PreimageRegex.IsMatch(preimage))
+            throw new ArgumentException(
+                "Preimage must be a hex-encoded string (only characters 0-9, a-f, A-F).", nameof(preimage));
+
+        if (preimage.Length % 2 != 0)
+            throw new ArgumentException(
+                "Preimage hex string must have an even number of characters (each byte is 2 hex chars).", nameof(preimage));
+
+        // Lightning payment preimages are 32 bytes = 64 hex characters
+        if (preimage.Length != 64)
+            throw new ArgumentException(
+                $"Preimage must be exactly 64 hex characters (32 bytes). Got {preimage.Length} characters.", nameof(preimage));
+    }
+
     private static L402ChallengeResponse? ParseWwwAuthenticate(HttpHeaderValueCollection<AuthenticationHeaderValue> headers)
     {
+        L402ChallengeResponse? mppChallenge = null;
+
         foreach (var header in headers)
         {
+            // Prefer L402 when both L402 and Payment headers are present
             if (header.Scheme.Equals("L402", StringComparison.OrdinalIgnoreCase) && header.Parameter != null)
             {
                 var challenge = new L402ChallengeResponse();
@@ -106,11 +158,81 @@ public class L402Client : IDisposable
                     }
                 }
 
-                return challenge;
+                // Only prefer L402 when required fields are present; otherwise keep scanning for a valid L402 or Payment challenge.
+                if (!string.IsNullOrEmpty(challenge.Macaroon) && !string.IsNullOrEmpty(challenge.Invoice))
+                {
+                    return challenge;
+                }
+            }
+
+            // Check for Payment (MPP) scheme as fallback
+            if (header.Scheme.Equals("Payment", StringComparison.OrdinalIgnoreCase) && header.Parameter != null)
+            {
+                var parameter = header.Parameter;
+
+                var mppParams = ParseAuthParams(parameter);
+
+                if (!mppParams.TryGetValue("method", out var method) ||
+                    !method.Equals("lightning", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (!mppParams.TryGetValue("invoice", out var invoice))
+                    continue;
+
+                mppChallenge = new L402ChallengeResponse
+                {
+                    Invoice = invoice,
+                    Macaroon = null,
+                    IsMpp = true
+                };
+
+                // Parse optional amount — only set PriceSats when the currency is sats (or unspecified, assuming sats by default).
+                if (mppParams.TryGetValue("amount", out var amountStr) && int.TryParse(amountStr, out var amount))
+                {
+                    mppParams.TryGetValue("currency", out var currency);
+
+                    if (currency is null ||
+                        currency.Equals("sat", StringComparison.OrdinalIgnoreCase) ||
+                        currency.Equals("sats", StringComparison.OrdinalIgnoreCase) ||
+                        currency.Equals("satoshi", StringComparison.OrdinalIgnoreCase) ||
+                        currency.Equals("satoshis", StringComparison.OrdinalIgnoreCase))
+                    {
+                        mppChallenge.PriceSats = amount;
+                    }
+                }
+
+                if (mppParams.TryGetValue("realm", out var realmValue))
+                    mppChallenge.Description = realmValue;
+
+                // Don't return yet — keep looking for an L402 header which takes priority
             }
         }
 
-        return null;
+        // No L402 found; return MPP challenge if available
+        return mppChallenge;
+    }
+
+    /// <summary>
+    /// Parses auth-param key/value pairs from an authentication header parameter string.
+    /// Tolerant of optional whitespace around '=' and supports both quoted and unquoted values.
+    /// Example: <c>method="lightning", invoice="lnbc...", amount=100</c>
+    /// </summary>
+    private static Dictionary<string, string> ParseAuthParams(string parameterString)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // Match key = "quoted value" or key = unquoted-token, with optional whitespace around '='.
+        // Auth-param names are HTTP tokens, which allow characters like - and . in addition to alphanumerics.
+        var matches = AuthParamRegex.Matches(parameterString);
+
+        foreach (Match match in matches)
+        {
+            var key = match.Groups[1].Value;
+            var value = match.Groups[2].Success ? match.Groups[2].Value : match.Groups[3].Value;
+            result[key] = value;
+        }
+
+        return result;
     }
 
     public void Dispose()

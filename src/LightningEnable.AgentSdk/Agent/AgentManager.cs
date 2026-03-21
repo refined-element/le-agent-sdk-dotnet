@@ -208,9 +208,10 @@ public class AgentManager : IAsyncDisposable
 
     /// <summary>
     /// Verify a payment was made (producer side).
+    /// When macaroon is null or empty (MPP mode), verifies using preimage only.
     /// </summary>
     public async Task<bool> VerifyPaymentAsync(
-        string macaroon, string preimage, CancellationToken ct = default)
+        string? macaroon, string preimage, CancellationToken ct = default)
     {
         if (_producerClient == null)
             throw new InvalidOperationException("Producer client not configured. Set LightningEnableApiKey.");

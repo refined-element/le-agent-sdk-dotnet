@@ -68,16 +68,25 @@ public class L402ProducerClient : IDisposable
     }
 
     /// <summary>
-    /// Verify that a payment has been made for a given macaroon.
+    /// Verify that a payment has been made. When macaroon is null or empty (MPP mode),
+    /// sends only the preimage for verification.
     /// </summary>
+    /// <param name="macaroon">
+    /// The L402 macaroon to verify. When <c>null</c> or empty, the macaroon is omitted and only
+    /// the preimage is sent for verification (MPP mode).
+    /// </param>
+    /// <param name="preimage">The Lightning payment preimage used for verification.</param>
+    /// <param name="ct">Optional cancellation token for the HTTP request.</param>
     public async Task<bool> VerifyPaymentAsync(
-        string macaroon, string preimage, CancellationToken ct = default)
+        string? macaroon, string preimage, CancellationToken ct = default)
     {
         var payload = new Dictionary<string, string>
         {
-            ["macaroon"] = macaroon,
             ["preimage"] = preimage
         };
+
+        if (!string.IsNullOrEmpty(macaroon))
+            payload["macaroon"] = macaroon;
 
         var json = JsonSerializer.Serialize(payload);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -88,13 +97,13 @@ public class L402ProducerClient : IDisposable
         };
         request.Headers.Add("X-API-Key", _apiKey);
 
-        var response = await _httpClient.SendAsync(request, ct);
+        using var response = await _httpClient.SendAsync(request, ct);
 
         if (!response.IsSuccessStatusCode)
             return false;
 
         var responseJson = await response.Content.ReadAsStringAsync(ct);
-        var doc = JsonDocument.Parse(responseJson);
+        using var doc = JsonDocument.Parse(responseJson);
 
         if (doc.RootElement.TryGetProperty("valid", out var validProp))
             return validProp.GetBoolean();
