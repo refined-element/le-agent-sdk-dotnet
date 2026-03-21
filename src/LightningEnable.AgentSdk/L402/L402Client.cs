@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace LightningEnable.AgentSdk.L402;
@@ -9,8 +8,17 @@ namespace LightningEnable.AgentSdk.L402;
 /// Consumer-side L402 client. Handles requesting resources protected by L402,
 /// detecting 402 challenges, and retrying with payment proof.
 /// </summary>
-public class L402Client : IDisposable
+public partial class L402Client : IDisposable
 {
+    private static readonly Regex PreimageRegex = GetPreimageRegex();
+    private static readonly Regex AuthParamRegex = GetAuthParamRegex();
+
+    [GeneratedRegex(@"^[a-fA-F0-9]+$")]
+    private static partial Regex GetPreimageRegex();
+
+    [GeneratedRegex(@"([!#$%&'*+\-.^_`|~0-9A-Za-z]+)\s*=\s*(?:""([^""]*)""|(\S+?))\s*(?:,|$)")]
+    private static partial Regex GetAuthParamRegex();
+
     private readonly HttpClient _httpClient;
     private readonly bool _ownsClient;
 
@@ -100,7 +108,7 @@ public class L402Client : IDisposable
         if (string.IsNullOrEmpty(preimage))
             throw new ArgumentException("Preimage must not be null or empty.", nameof(preimage));
 
-        if (!Regex.IsMatch(preimage, @"^[a-fA-F0-9]+$"))
+        if (!PreimageRegex.IsMatch(preimage))
             throw new ArgumentException(
                 "Preimage must be a hex-encoded string (only characters 0-9, a-f, A-F).", nameof(preimage));
     }
@@ -201,7 +209,7 @@ public class L402Client : IDisposable
 
         // Match key = "quoted value" or key = unquoted-token, with optional whitespace around '='.
         // Auth-param names are HTTP tokens, which allow characters like - and . in addition to alphanumerics.
-        var matches = Regex.Matches(parameterString, @"([!#$%&'*+\-.^_`|~0-9A-Za-z]+)\s*=\s*(?:""([^""]*)""|(\S+?))\s*(?:,|$)");
+        var matches = AuthParamRegex.Matches(parameterString);
 
         foreach (Match match in matches)
         {
