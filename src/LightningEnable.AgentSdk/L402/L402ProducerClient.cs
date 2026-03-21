@@ -68,9 +68,15 @@ public class L402ProducerClient : IDisposable
     }
 
     /// <summary>
-    /// Verify that a payment has been made. When macaroon is null (MPP mode),
+    /// Verify that a payment has been made. When macaroon is null or empty (MPP mode),
     /// sends only the preimage for verification.
     /// </summary>
+    /// <param name="macaroon">
+    /// The L402 macaroon to verify. When <c>null</c> or empty, the macaroon is omitted and only
+    /// the preimage is sent for verification (MPP mode).
+    /// </param>
+    /// <param name="preimage">The Lightning payment preimage used for verification.</param>
+    /// <param name="ct">Optional cancellation token for the HTTP request.</param>
     public async Task<bool> VerifyPaymentAsync(
         string? macaroon, string preimage, CancellationToken ct = default)
     {

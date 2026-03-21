@@ -196,6 +196,59 @@ public class MppClientTests
         Assert.Null(result.Challenge);
     }
 
+    [Fact]
+    public async Task Access_MppWithWhitespaceAroundEquals_ParsesCorrectly()
+    {
+        // Arrange: server returns Payment header with whitespace around '=' (legal per auth-param spec)
+        var handler = new StubHandler(req =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.PaymentRequired);
+            response.Headers.WwwAuthenticate.Add(
+                new AuthenticationHeaderValue("Payment",
+                    "realm = \"weather-api\", method = \"lightning\", invoice = \"lnbc500n1ws\", amount = \"500\", currency = \"sats\""));
+            return response;
+        });
+
+        using var httpClient = new HttpClient(handler);
+        using var client = new L402Client(httpClient);
+
+        // Act
+        var result = await client.AccessAsync("https://example.com/api/weather");
+
+        // Assert
+        Assert.NotNull(result.Challenge);
+        Assert.True(result.Challenge!.IsMpp);
+        Assert.Equal("lnbc500n1ws", result.Challenge.Invoice);
+        Assert.Equal(500, result.Challenge.PriceSats);
+        Assert.Equal("weather-api", result.Challenge.Description);
+    }
+
+    [Fact]
+    public async Task Access_MppWithUnquotedValues_ParsesCorrectly()
+    {
+        // Arrange: server returns Payment header with unquoted token values
+        var handler = new StubHandler(req =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.PaymentRequired);
+            response.Headers.WwwAuthenticate.Add(
+                new AuthenticationHeaderValue("Payment",
+                    "method=lightning, invoice=\"lnbc750n1uq\", amount=750"));
+            return response;
+        });
+
+        using var httpClient = new HttpClient(handler);
+        using var client = new L402Client(httpClient);
+
+        // Act
+        var result = await client.AccessAsync("https://example.com/api/data");
+
+        // Assert
+        Assert.NotNull(result.Challenge);
+        Assert.True(result.Challenge!.IsMpp);
+        Assert.Equal("lnbc750n1uq", result.Challenge.Invoice);
+        Assert.Equal(750, result.Challenge.PriceSats);
+    }
+
     #endregion
 
     #region AccessWithProofAsync — MPP auth header

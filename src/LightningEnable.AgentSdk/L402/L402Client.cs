@@ -148,28 +148,26 @@ public class L402Client : IDisposable
             {
                 var parameter = header.Parameter;
 
-                var methodMatch = Regex.Match(parameter, @"method=""(?<method>[^""]+)""", RegexOptions.IgnoreCase);
-                if (!methodMatch.Success ||
-                    !methodMatch.Groups["method"].Value.Equals("lightning", StringComparison.OrdinalIgnoreCase))
+                var mppParams = ParseAuthParams(parameter);
+
+                if (!mppParams.TryGetValue("method", out var method) ||
+                    !method.Equals("lightning", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                var invoiceMatch = Regex.Match(parameter, @"invoice=""(?<invoice>[^""]+)""", RegexOptions.IgnoreCase);
-                if (!invoiceMatch.Success)
+                if (!mppParams.TryGetValue("invoice", out var invoice))
                     continue;
 
                 mppChallenge = new L402ChallengeResponse
                 {
-                    Invoice = invoiceMatch.Groups["invoice"].Value,
+                    Invoice = invoice,
                     Macaroon = null,
                     IsMpp = true
                 };
 
                 // Parse optional amount — only set PriceSats when the currency is sats (or unspecified, assuming sats by default).
-                var amountMatch = Regex.Match(parameter, @"amount=""(?<amount>[^""]+)""", RegexOptions.IgnoreCase);
-                if (amountMatch.Success && int.TryParse(amountMatch.Groups["amount"].Value, out var amount))
+                if (mppParams.TryGetValue("amount", out var amountStr) && int.TryParse(amountStr, out var amount))
                 {
-                    var currencyMatch = Regex.Match(parameter, @"currency=""(?<currency>[^""]+)""", RegexOptions.IgnoreCase);
-                    var currency = currencyMatch.Success ? currencyMatch.Groups["currency"].Value : null;
+                    mppParams.TryGetValue("currency", out var currency);
 
                     if (currency is null ||
                         currency.Equals("sat", StringComparison.OrdinalIgnoreCase) ||
@@ -181,9 +179,8 @@ public class L402Client : IDisposable
                     }
                 }
 
-                var realmMatch = Regex.Match(parameter, @"realm=""(?<realm>[^""]+)""", RegexOptions.IgnoreCase);
-                if (realmMatch.Success)
-                    mppChallenge.Description = realmMatch.Groups["realm"].Value;
+                if (mppParams.TryGetValue("realm", out var realmValue))
+                    mppChallenge.Description = realmValue;
 
                 // Don't return yet — keep looking for an L402 header which takes priority
             }
@@ -191,6 +188,28 @@ public class L402Client : IDisposable
 
         // No L402 found; return MPP challenge if available
         return mppChallenge;
+    }
+
+    /// <summary>
+    /// Parses auth-param key/value pairs from an authentication header parameter string.
+    /// Tolerant of optional whitespace around '=' and supports both quoted and unquoted values.
+    /// Example: <c>method="lightning", invoice="lnbc...", amount=100</c>
+    /// </summary>
+    private static Dictionary<string, string> ParseAuthParams(string parameterString)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // Match key = "quoted value" or key = unquoted-token, with optional whitespace around '='
+        var matches = Regex.Matches(parameterString, @"(\w+)\s*=\s*(?:""([^""]*)""|(\S+?))\s*(?:,|$)");
+
+        foreach (Match match in matches)
+        {
+            var key = match.Groups[1].Value;
+            var value = match.Groups[2].Success ? match.Groups[2].Value : match.Groups[3].Value;
+            result[key] = value;
+        }
+
+        return result;
     }
 
     public void Dispose()
