@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace LightningEnable.AgentSdk.L402;
 
@@ -57,12 +58,25 @@ public class L402Client : IDisposable
 
     /// <summary>
     /// Access an L402-protected endpoint with a pre-paid macaroon and preimage.
+    /// When macaroon is null or empty, uses the MPP Payment authorization scheme
+    /// instead of the L402 scheme.
     /// </summary>
     public async Task<L402AccessResult> AccessWithProofAsync(
-        string url, string macaroon, string preimage, CancellationToken ct = default)
+        string url, string? macaroon, string preimage, CancellationToken ct = default)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("L402", $"{macaroon}:{preimage}");
+
+        if (string.IsNullOrEmpty(macaroon))
+        {
+            // MPP mode — Payment scheme with preimage only
+            request.Headers.TryAddWithoutValidation("Authorization",
+                $"Payment method=\"lightning\", preimage=\"{preimage}\"");
+        }
+        else
+        {
+            // L402 mode — macaroon:preimage
+            request.Headers.Authorization = new AuthenticationHeaderValue("L402", $"{macaroon}:{preimage}");
+        }
 
         var response = await _httpClient.SendAsync(request, ct);
         var content = await response.Content.ReadAsStringAsync(ct);
@@ -77,8 +91,11 @@ public class L402Client : IDisposable
 
     private static L402ChallengeResponse? ParseWwwAuthenticate(HttpHeaderValueCollection<AuthenticationHeaderValue> headers)
     {
+        L402ChallengeResponse? mppChallenge = null;
+
         foreach (var header in headers)
         {
+            // Prefer L402 when both L402 and Payment headers are present
             if (header.Scheme.Equals("L402", StringComparison.OrdinalIgnoreCase) && header.Parameter != null)
             {
                 var challenge = new L402ChallengeResponse();
@@ -106,11 +123,46 @@ public class L402Client : IDisposable
                     }
                 }
 
+                // L402 found — return immediately (preferred over MPP)
                 return challenge;
+            }
+
+            // Check for Payment (MPP) scheme as fallback
+            if (header.Scheme.Equals("Payment", StringComparison.OrdinalIgnoreCase) && header.Parameter != null)
+            {
+                var parameter = header.Parameter;
+
+                var methodMatch = Regex.Match(parameter, @"method=""(?<method>[^""]+)""", RegexOptions.IgnoreCase);
+                if (!methodMatch.Success ||
+                    !methodMatch.Groups["method"].Value.Equals("lightning", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var invoiceMatch = Regex.Match(parameter, @"invoice=""(?<invoice>[^""]+)""", RegexOptions.IgnoreCase);
+                if (!invoiceMatch.Success)
+                    continue;
+
+                mppChallenge = new L402ChallengeResponse
+                {
+                    Invoice = invoiceMatch.Groups["invoice"].Value,
+                    Macaroon = null,
+                    IsMpp = true
+                };
+
+                // Parse optional amount and currency
+                var amountMatch = Regex.Match(parameter, @"amount=""(?<amount>[^""]+)""", RegexOptions.IgnoreCase);
+                if (amountMatch.Success && int.TryParse(amountMatch.Groups["amount"].Value, out var amount))
+                    mppChallenge.PriceSats = amount;
+
+                var realmMatch = Regex.Match(parameter, @"realm=""(?<realm>[^""]+)""", RegexOptions.IgnoreCase);
+                if (realmMatch.Success)
+                    mppChallenge.Description = realmMatch.Groups["realm"].Value;
+
+                // Don't return yet — keep looking for an L402 header which takes priority
             }
         }
 
-        return null;
+        // No L402 found; return MPP challenge if available
+        return mppChallenge;
     }
 
     public void Dispose()

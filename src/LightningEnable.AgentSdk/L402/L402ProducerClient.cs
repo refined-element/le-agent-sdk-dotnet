@@ -68,16 +68,19 @@ public class L402ProducerClient : IDisposable
     }
 
     /// <summary>
-    /// Verify that a payment has been made for a given macaroon.
+    /// Verify that a payment has been made. When macaroon is null (MPP mode),
+    /// sends only the preimage for verification.
     /// </summary>
     public async Task<bool> VerifyPaymentAsync(
-        string macaroon, string preimage, CancellationToken ct = default)
+        string? macaroon, string preimage, CancellationToken ct = default)
     {
         var payload = new Dictionary<string, string>
         {
-            ["macaroon"] = macaroon,
             ["preimage"] = preimage
         };
+
+        if (!string.IsNullOrEmpty(macaroon))
+            payload["macaroon"] = macaroon;
 
         var json = JsonSerializer.Serialize(payload);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
