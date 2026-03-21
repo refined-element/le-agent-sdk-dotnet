@@ -122,6 +122,58 @@ public class MppClientTests
     }
 
     [Fact]
+    public async Task Access_MppNonSatCurrency_DoesNotSetPriceSats()
+    {
+        // Arrange: server returns a Payment header with currency="msat" (not sats)
+        var handler = new StubHandler(req =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.PaymentRequired);
+            response.Headers.WwwAuthenticate.Add(
+                new AuthenticationHeaderValue("Payment",
+                    "realm=\"api\", method=\"lightning\", invoice=\"lnbc200n1test\", amount=\"200000\", currency=\"msat\""));
+            return response;
+        });
+
+        using var httpClient = new HttpClient(handler);
+        using var client = new L402Client(httpClient);
+
+        // Act
+        var result = await client.AccessAsync("https://example.com/api/data");
+
+        // Assert — amount should NOT be set because currency is not sats (remains default 0)
+        Assert.NotNull(result.Challenge);
+        Assert.True(result.Challenge!.IsMpp);
+        Assert.Equal("lnbc200n1test", result.Challenge.Invoice);
+        Assert.Equal(0, result.Challenge.PriceSats);
+    }
+
+    [Fact]
+    public async Task Access_MppNoCurrency_DefaultsToSats()
+    {
+        // Arrange: server returns a Payment header with amount but no currency (defaults to sats)
+        var handler = new StubHandler(req =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.PaymentRequired);
+            response.Headers.WwwAuthenticate.Add(
+                new AuthenticationHeaderValue("Payment",
+                    "realm=\"api\", method=\"lightning\", invoice=\"lnbc300n1test\", amount=\"300\""));
+            return response;
+        });
+
+        using var httpClient = new HttpClient(handler);
+        using var client = new L402Client(httpClient);
+
+        // Act
+        var result = await client.AccessAsync("https://example.com/api/data");
+
+        // Assert — no currency specified, should default to sats
+        Assert.NotNull(result.Challenge);
+        Assert.True(result.Challenge!.IsMpp);
+        Assert.Equal("lnbc300n1test", result.Challenge.Invoice);
+        Assert.Equal(300, result.Challenge.PriceSats);
+    }
+
+    [Fact]
     public async Task Access_PaymentHeaderNoInvoice_ReturnsNull()
     {
         // Arrange: Payment header with method=lightning but no invoice

@@ -164,10 +164,22 @@ public class L402Client : IDisposable
                     IsMpp = true
                 };
 
-                // Parse optional amount and currency
+                // Parse optional amount — only set PriceSats when the currency is sats (or unspecified, assuming sats by default).
                 var amountMatch = Regex.Match(parameter, @"amount=""(?<amount>[^""]+)""", RegexOptions.IgnoreCase);
                 if (amountMatch.Success && int.TryParse(amountMatch.Groups["amount"].Value, out var amount))
-                    mppChallenge.PriceSats = amount;
+                {
+                    var currencyMatch = Regex.Match(parameter, @"currency=""(?<currency>[^""]+)""", RegexOptions.IgnoreCase);
+                    var currency = currencyMatch.Success ? currencyMatch.Groups["currency"].Value : null;
+
+                    if (currency is null ||
+                        currency.Equals("sat", StringComparison.OrdinalIgnoreCase) ||
+                        currency.Equals("sats", StringComparison.OrdinalIgnoreCase) ||
+                        currency.Equals("satoshi", StringComparison.OrdinalIgnoreCase) ||
+                        currency.Equals("satoshis", StringComparison.OrdinalIgnoreCase))
+                    {
+                        mppChallenge.PriceSats = amount;
+                    }
+                }
 
                 var realmMatch = Regex.Match(parameter, @"realm=""(?<realm>[^""]+)""", RegexOptions.IgnoreCase);
                 if (realmMatch.Success)
