@@ -199,8 +199,9 @@ public class L402Client : IDisposable
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        // Match key = "quoted value" or key = unquoted-token, with optional whitespace around '='
-        var matches = Regex.Matches(parameterString, @"(\w+)\s*=\s*(?:""([^""]*)""|(\S+?))\s*(?:,|$)");
+        // Match key = "quoted value" or key = unquoted-token, with optional whitespace around '='.
+        // Auth-param names are HTTP tokens, which allow characters like - and . in addition to alphanumerics.
+        var matches = Regex.Matches(parameterString, @"([!#$%&'*+\-.^_`|~0-9A-Za-z]+)\s*=\s*(?:""([^""]*)""|(\S+?))\s*(?:,|$)");
 
         foreach (Match match in matches)
         {

@@ -260,8 +260,7 @@ public class MppClientTests
         string? capturedAuthHeader = null;
         var handler = new StubHandler(req =>
         {
-            capturedAuthHeader = req.Headers.Authorization?.ToString()
-                ?? req.Headers.GetValues("Authorization").FirstOrDefault();
+            capturedAuthHeader = req.Headers.Authorization?.ToString();
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{\"data\":\"ok\"}")
@@ -291,8 +290,7 @@ public class MppClientTests
         string? capturedAuthHeader = null;
         var handler = new StubHandler(req =>
         {
-            capturedAuthHeader = req.Headers.Authorization?.ToString()
-                ?? req.Headers.GetValues("Authorization").FirstOrDefault();
+            capturedAuthHeader = req.Headers.Authorization?.ToString();
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{}")
