@@ -277,7 +277,7 @@ public class MppClientTests
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(capturedAuthHeader);
-        Assert.Contains("Payment", capturedAuthHeader!);
+        Assert.StartsWith("Payment ", capturedAuthHeader!);
         Assert.Contains("method=\"lightning\"", capturedAuthHeader);
         Assert.Contains("preimage=\"aabbccdd00112233aabbccdd00112233aabbccdd00112233aabbccdd00112233\"", capturedAuthHeader);
         Assert.DoesNotContain("L402", capturedAuthHeader);
@@ -307,7 +307,7 @@ public class MppClientTests
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(capturedAuthHeader);
-        Assert.Contains("Payment", capturedAuthHeader!);
+        Assert.StartsWith("Payment ", capturedAuthHeader!);
         Assert.Contains("preimage=\"ddeeff0011223344ddeeff0011223344ddeeff0011223344ddeeff0011223344\"", capturedAuthHeader);
     }
 
@@ -330,13 +330,13 @@ public class MppClientTests
 
         // Act
         var result = await client.AccessWithProofAsync(
-            "https://example.com/api/data", "mac_token_123", "preimage_hex_ghi");
+            "https://example.com/api/data", "mac_token_123", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789");
 
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(capturedAuthHeader);
         Assert.StartsWith("L402", capturedAuthHeader!);
-        Assert.Contains("mac_token_123:preimage_hex_ghi", capturedAuthHeader);
+        Assert.Contains("mac_token_123:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", capturedAuthHeader);
         Assert.DoesNotContain("Payment", capturedAuthHeader);
     }
 

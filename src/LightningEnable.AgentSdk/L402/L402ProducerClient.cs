@@ -97,13 +97,13 @@ public class L402ProducerClient : IDisposable
         };
         request.Headers.Add("X-API-Key", _apiKey);
 
-        var response = await _httpClient.SendAsync(request, ct);
+        using var response = await _httpClient.SendAsync(request, ct);
 
         if (!response.IsSuccessStatusCode)
             return false;
 
         var responseJson = await response.Content.ReadAsStringAsync(ct);
-        var doc = JsonDocument.Parse(responseJson);
+        using var doc = JsonDocument.Parse(responseJson);
 
         if (doc.RootElement.TryGetProperty("valid", out var validProp))
             return validProp.GetBoolean();
