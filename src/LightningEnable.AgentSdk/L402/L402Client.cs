@@ -100,8 +100,10 @@ public partial class L402Client : IDisposable
     }
 
     /// <summary>
-    /// Validates that a preimage is a safe hex string (no quotes, commas, CR/LF, or other
-    /// characters that could break header formatting or enable header injection).
+    /// Validates that a preimage is a safe hex string of the expected length.
+    /// Lightning payment preimages are 32 bytes (64 hex characters).
+    /// Rejects empty, non-hex, odd-length, and incorrectly sized values to prevent
+    /// hard-to-diagnose server rejections or oversized header failures.
     /// </summary>
     private static void ValidatePreimage(string preimage)
     {
@@ -111,6 +113,15 @@ public partial class L402Client : IDisposable
         if (!PreimageRegex.IsMatch(preimage))
             throw new ArgumentException(
                 "Preimage must be a hex-encoded string (only characters 0-9, a-f, A-F).", nameof(preimage));
+
+        if (preimage.Length % 2 != 0)
+            throw new ArgumentException(
+                "Preimage hex string must have an even number of characters (each byte is 2 hex chars).", nameof(preimage));
+
+        // Lightning payment preimages are 32 bytes = 64 hex characters
+        if (preimage.Length != 64)
+            throw new ArgumentException(
+                $"Preimage must be exactly 64 hex characters (32 bytes). Got {preimage.Length} characters.", nameof(preimage));
     }
 
     private static L402ChallengeResponse? ParseWwwAuthenticate(HttpHeaderValueCollection<AuthenticationHeaderValue> headers)
@@ -147,8 +158,11 @@ public partial class L402Client : IDisposable
                     }
                 }
 
-                // L402 found — return immediately (preferred over MPP)
-                return challenge;
+                // Only prefer L402 when required fields are present; otherwise keep scanning for a valid L402 or Payment challenge.
+                if (!string.IsNullOrEmpty(challenge.Macaroon) && !string.IsNullOrEmpty(challenge.Invoice))
+                {
+                    return challenge;
+                }
             }
 
             // Check for Payment (MPP) scheme as fallback

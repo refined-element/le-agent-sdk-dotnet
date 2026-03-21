@@ -270,16 +270,16 @@ public class MppClientTests
         using var httpClient = new HttpClient(handler);
         using var client = new L402Client(httpClient);
 
-        // Act — null macaroon triggers MPP mode
+        // Act — null macaroon triggers MPP mode (preimage must be 64 hex chars / 32 bytes)
         var result = await client.AccessWithProofAsync(
-            "https://example.com/api/data", null, "aabbccdd00112233");
+            "https://example.com/api/data", null, "aabbccdd00112233aabbccdd00112233aabbccdd00112233aabbccdd00112233");
 
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(capturedAuthHeader);
         Assert.Contains("Payment", capturedAuthHeader!);
         Assert.Contains("method=\"lightning\"", capturedAuthHeader);
-        Assert.Contains("preimage=\"aabbccdd00112233\"", capturedAuthHeader);
+        Assert.Contains("preimage=\"aabbccdd00112233aabbccdd00112233aabbccdd00112233aabbccdd00112233\"", capturedAuthHeader);
         Assert.DoesNotContain("L402", capturedAuthHeader);
     }
 
@@ -300,15 +300,15 @@ public class MppClientTests
         using var httpClient = new HttpClient(handler);
         using var client = new L402Client(httpClient);
 
-        // Act — empty string macaroon also triggers MPP mode
+        // Act — empty string macaroon also triggers MPP mode (preimage must be 64 hex chars / 32 bytes)
         var result = await client.AccessWithProofAsync(
-            "https://example.com/api/data", "", "ddeeff0011223344");
+            "https://example.com/api/data", "", "ddeeff0011223344ddeeff0011223344ddeeff0011223344ddeeff0011223344");
 
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(capturedAuthHeader);
         Assert.Contains("Payment", capturedAuthHeader!);
-        Assert.Contains("preimage=\"ddeeff0011223344\"", capturedAuthHeader);
+        Assert.Contains("preimage=\"ddeeff0011223344ddeeff0011223344ddeeff0011223344ddeeff0011223344\"", capturedAuthHeader);
     }
 
     [Fact]
@@ -422,6 +422,99 @@ public class MppClientTests
         Assert.True(valid);
         Assert.NotNull(capturedBody);
         Assert.DoesNotContain("\"macaroon\"", capturedBody!);
+    }
+
+    [Fact]
+    public async Task AccessWithProof_MppMode_RejectsShortPreimage()
+    {
+        // Arrange
+        var handler = new StubHandler(req => new HttpResponseMessage(HttpStatusCode.OK));
+        using var httpClient = new HttpClient(handler);
+        using var client = new L402Client(httpClient);
+
+        // Act & Assert — 16-char hex is too short (must be 64)
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            client.AccessWithProofAsync("https://example.com/api/data", null, "aabbccdd00112233"));
+        Assert.Contains("exactly 64 hex characters", ex.Message);
+    }
+
+    [Fact]
+    public async Task AccessWithProof_MppMode_RejectsOddLengthPreimage()
+    {
+        // Arrange
+        var handler = new StubHandler(req => new HttpResponseMessage(HttpStatusCode.OK));
+        using var httpClient = new HttpClient(handler);
+        using var client = new L402Client(httpClient);
+
+        // Act & Assert — 63 chars is odd-length
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            client.AccessWithProofAsync("https://example.com/api/data", null, "aabbccdd00112233aabbccdd00112233aabbccdd00112233aabbccdd0011223"));
+        Assert.Contains("even number of characters", ex.Message);
+    }
+
+    #endregion
+
+    #region ParseWwwAuthenticate — L402 fallback to MPP
+
+    [Fact]
+    public async Task Access_IncompleteL402_FallsBackToMpp()
+    {
+        // Arrange: server returns an L402 header missing macaroon + a valid Payment header
+        var handler = new StubHandler(req =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.PaymentRequired);
+            // Incomplete L402 — no macaroon field
+            response.Headers.WwwAuthenticate.Add(
+                new AuthenticationHeaderValue("L402",
+                    "invoice=\"lnbc_partial\", payment_hash=\"hash789\""));
+            // Valid Payment/MPP header
+            response.Headers.WwwAuthenticate.Add(
+                new AuthenticationHeaderValue("Payment",
+                    "method=\"lightning\", invoice=\"lnbc_mpp_fallback\", amount=\"200\", currency=\"sat\""));
+            return response;
+        });
+
+        using var httpClient = new HttpClient(handler);
+        using var client = new L402Client(httpClient);
+
+        // Act
+        var result = await client.AccessAsync("https://example.com/api/data");
+
+        // Assert — incomplete L402 should not block valid MPP challenge
+        Assert.NotNull(result.Challenge);
+        Assert.True(result.Challenge!.IsMpp);
+        Assert.Equal("lnbc_mpp_fallback", result.Challenge.Invoice);
+        Assert.Equal(200, result.Challenge.PriceSats);
+    }
+
+    [Fact]
+    public async Task Access_IncompleteL402NoInvoice_FallsBackToMpp()
+    {
+        // Arrange: server returns an L402 header missing invoice + a valid Payment header
+        var handler = new StubHandler(req =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.PaymentRequired);
+            // Incomplete L402 — has macaroon but no invoice
+            response.Headers.WwwAuthenticate.Add(
+                new AuthenticationHeaderValue("L402",
+                    "macaroon=\"mac_only\""));
+            // Valid Payment/MPP header
+            response.Headers.WwwAuthenticate.Add(
+                new AuthenticationHeaderValue("Payment",
+                    "method=\"lightning\", invoice=\"lnbc_mpp_fb2\", amount=\"150\", currency=\"sats\""));
+            return response;
+        });
+
+        using var httpClient = new HttpClient(handler);
+        using var client = new L402Client(httpClient);
+
+        // Act
+        var result = await client.AccessAsync("https://example.com/api/data");
+
+        // Assert — incomplete L402 should not block valid MPP challenge
+        Assert.NotNull(result.Challenge);
+        Assert.True(result.Challenge!.IsMpp);
+        Assert.Equal("lnbc_mpp_fb2", result.Challenge.Invoice);
     }
 
     #endregion
