@@ -91,7 +91,7 @@ public class L402ProducerClient : IDisposable
         var json = JsonSerializer.Serialize(payload);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var request = new HttpRequestMessage(HttpMethod.Post, $"{_apiBaseUrl}/l402/verify")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_apiBaseUrl}/l402/verify")
         {
             Content = content
         };

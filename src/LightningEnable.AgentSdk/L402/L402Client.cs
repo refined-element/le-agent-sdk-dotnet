@@ -72,12 +72,12 @@ public partial class L402Client : IDisposable
     public async Task<L402AccessResult> AccessWithProofAsync(
         string url, string? macaroon, string preimage, CancellationToken ct = default)
     {
+        ValidatePreimage(preimage);
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
 
         if (string.IsNullOrEmpty(macaroon))
         {
             // MPP mode — Payment scheme with preimage only
-            ValidatePreimage(preimage);
             request.Headers.Authorization = new AuthenticationHeaderValue(
                 "Payment",
                 $"method=\"lightning\", preimage=\"{preimage}\"");
