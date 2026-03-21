@@ -9,7 +9,7 @@ public class L402ChallengeResponse
     /// <summary>
     /// The macaroon token. Null when the challenge uses MPP (Payment scheme) instead of L402.
     /// </summary>
-    public string? Macaroon { get; set; } = string.Empty;
+    public string? Macaroon { get; set; }
 
     public string Invoice { get; set; } = string.Empty;
     public string PaymentHash { get; set; } = string.Empty;

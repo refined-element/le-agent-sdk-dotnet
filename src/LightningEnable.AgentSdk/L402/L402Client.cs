@@ -69,8 +69,10 @@ public class L402Client : IDisposable
         if (string.IsNullOrEmpty(macaroon))
         {
             // MPP mode — Payment scheme with preimage only
-            request.Headers.TryAddWithoutValidation("Authorization",
-                $"Payment method=\"lightning\", preimage=\"{preimage}\"");
+            ValidatePreimage(preimage);
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Payment",
+                $"method=\"lightning\", preimage=\"{preimage}\"");
         }
         else
         {
@@ -87,6 +89,20 @@ public class L402Client : IDisposable
             StatusCode = (int)response.StatusCode,
             Content = content
         };
+    }
+
+    /// <summary>
+    /// Validates that a preimage is a safe hex string (no quotes, commas, CR/LF, or other
+    /// characters that could break header formatting or enable header injection).
+    /// </summary>
+    private static void ValidatePreimage(string preimage)
+    {
+        if (string.IsNullOrEmpty(preimage))
+            throw new ArgumentException("Preimage must not be null or empty.", nameof(preimage));
+
+        if (!Regex.IsMatch(preimage, @"^[a-fA-F0-9]+$"))
+            throw new ArgumentException(
+                "Preimage must be a hex-encoded string (only characters 0-9, a-f, A-F).", nameof(preimage));
     }
 
     private static L402ChallengeResponse? ParseWwwAuthenticate(HttpHeaderValueCollection<AuthenticationHeaderValue> headers)

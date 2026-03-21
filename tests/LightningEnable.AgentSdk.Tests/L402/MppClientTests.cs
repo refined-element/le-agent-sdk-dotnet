@@ -168,14 +168,14 @@ public class MppClientTests
 
         // Act — null macaroon triggers MPP mode
         var result = await client.AccessWithProofAsync(
-            "https://example.com/api/data", null, "preimage_hex_abc");
+            "https://example.com/api/data", null, "aabbccdd00112233");
 
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(capturedAuthHeader);
         Assert.Contains("Payment", capturedAuthHeader!);
         Assert.Contains("method=\"lightning\"", capturedAuthHeader);
-        Assert.Contains("preimage=\"preimage_hex_abc\"", capturedAuthHeader);
+        Assert.Contains("preimage=\"aabbccdd00112233\"", capturedAuthHeader);
         Assert.DoesNotContain("L402", capturedAuthHeader);
     }
 
@@ -199,13 +199,13 @@ public class MppClientTests
 
         // Act — empty string macaroon also triggers MPP mode
         var result = await client.AccessWithProofAsync(
-            "https://example.com/api/data", "", "preimage_hex_def");
+            "https://example.com/api/data", "", "ddeeff0011223344");
 
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(capturedAuthHeader);
         Assert.Contains("Payment", capturedAuthHeader!);
-        Assert.Contains("preimage=\"preimage_hex_def\"", capturedAuthHeader);
+        Assert.Contains("preimage=\"ddeeff0011223344\"", capturedAuthHeader);
     }
 
     [Fact]
