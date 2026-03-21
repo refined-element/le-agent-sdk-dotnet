@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>LightningEnable.AgentSdk</PackageId>
-    <Version>0.1.1</Version>
+    <Version>0.2.0</Version>
     <Description>SDK for Lightning Enable Agent Service Agreements on Nostr</Description>
     <Authors>Lightning Enable</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
