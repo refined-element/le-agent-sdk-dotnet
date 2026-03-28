@@ -141,4 +141,29 @@ public class AgentServiceAgreementTests
         Assert.Equal("completed", agr.Status);
         Assert.Equal("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef", agr.PaymentHash);
     }
+
+    [Fact]
+    public void FromNostrEvent_DropsPaymentHashWhenNotCompleted()
+    {
+        var json = """
+        {
+            "id": "inv123",
+            "pubkey": "inv_pub",
+            "created_at": 1700000000,
+            "kind": 38402,
+            "content": "",
+            "tags": [
+                ["d", "inv-test"],
+                ["status", "active"],
+                ["payment_hash", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"],
+                ["p", "provider_pub"],
+                ["p", "requester_pub"]
+            ]
+        }
+        """;
+        var element = JsonDocument.Parse(json).RootElement;
+        var agr = AgentServiceAgreement.FromNostrEvent(element);
+        Assert.Equal("active", agr.Status);
+        Assert.Null(agr.PaymentHash);
+    }
 }

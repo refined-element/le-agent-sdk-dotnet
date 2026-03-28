@@ -78,6 +78,10 @@ public class AgentServiceAgreement
             }
         }
 
+        // Enforce invariant: payment_hash only valid when status is completed
+        if (agreement.Status != "completed")
+            agreement.PaymentHash = null;
+
         return agreement;
     }
 
