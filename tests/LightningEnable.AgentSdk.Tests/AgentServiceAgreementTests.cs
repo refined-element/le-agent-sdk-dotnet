@@ -60,4 +60,85 @@ public class AgentServiceAgreementTests
         Assert.Contains(tags, t => t[0] == "expiration" && t[1] == "1700090000");
         Assert.Contains(tags, t => t[0] == "price" && t[1] == "100");
     }
+
+    [Fact]
+    public void ToNostrTags_IncludesPaymentHashWhenCompleted()
+    {
+        var agr = new AgentServiceAgreement
+        {
+            RequestId = "req-1",
+            ConsumerPubkey = "cpub",
+            ProviderPubkey = "ppub",
+            PriceSats = 100,
+            Status = "completed",
+            PaymentHash = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+        };
+
+        var tags = agr.ToNostrTags();
+
+        Assert.Contains(tags, t => t[0] == "payment_hash" && t[1] == "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2");
+    }
+
+    [Fact]
+    public void ToNostrTags_OmitsPaymentHashWhenNotCompleted()
+    {
+        var agr = new AgentServiceAgreement
+        {
+            RequestId = "req-1",
+            ConsumerPubkey = "cpub",
+            ProviderPubkey = "ppub",
+            PriceSats = 100,
+            Status = "active",
+            PaymentHash = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+        };
+
+        var tags = agr.ToNostrTags();
+
+        Assert.DoesNotContain(tags, t => t[0] == "payment_hash");
+    }
+
+    [Fact]
+    public void ToNostrTags_OmitsPaymentHashWhenNull()
+    {
+        var agr = new AgentServiceAgreement
+        {
+            RequestId = "req-1",
+            ConsumerPubkey = "cpub",
+            ProviderPubkey = "ppub",
+            PriceSats = 100,
+            Status = "completed"
+        };
+
+        var tags = agr.ToNostrTags();
+
+        Assert.DoesNotContain(tags, t => t[0] == "payment_hash");
+    }
+
+    [Fact]
+    public void FromNostrEvent_ParsesPaymentHash()
+    {
+        var json = """
+        {
+            "id": "agr-456",
+            "pubkey": "provider-pub",
+            "created_at": 1700000200,
+            "kind": 38402,
+            "content": "",
+            "tags": [
+                ["e", "req-abc"],
+                ["p", "consumer-pub"],
+                ["p", "provider-pub"],
+                ["price", "250"],
+                ["status", "completed"],
+                ["payment_hash", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"]
+            ]
+        }
+        """;
+
+        var element = JsonDocument.Parse(json).RootElement;
+        var agr = AgentServiceAgreement.FromNostrEvent(element);
+
+        Assert.Equal("completed", agr.Status);
+        Assert.Equal("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef", agr.PaymentHash);
+    }
 }

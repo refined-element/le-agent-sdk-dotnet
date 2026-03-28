@@ -234,7 +234,10 @@ public class AgentManager : IAsyncDisposable
         {
             new[] { "p", subjectPubkey },
             new[] { "e", agreementId },
-            new[] { "rating", rating.ToString() }
+            new[] { "rating", rating.ToString() },
+            new[] { "L", "nostr.agent.attestation" },
+            new[] { "l", "completed", "nostr.agent.attestation" },
+            new[] { "l", "commerce.service_completion", "nostr.agent.attestation" }
         };
 
         if (!string.IsNullOrEmpty(proof))

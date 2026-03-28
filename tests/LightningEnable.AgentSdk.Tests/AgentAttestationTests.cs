@@ -71,6 +71,23 @@ public class AgentAttestationTests
     }
 
     [Fact]
+    public void ToNostrTags_IncludesNip32LabelTags()
+    {
+        var att = new AgentAttestation
+        {
+            SubjectPubkey = "sub-pub",
+            AgreementId = "agr-1",
+            Rating = 5
+        };
+
+        var tags = att.ToNostrTags();
+
+        Assert.Contains(tags, t => t[0] == "L" && t[1] == "nostr.agent.attestation");
+        Assert.Contains(tags, t => t[0] == "l" && t[1] == "completed" && t[2] == "nostr.agent.attestation");
+        Assert.Contains(tags, t => t[0] == "l" && t[1] == "commerce.service_completion" && t[2] == "nostr.agent.attestation");
+    }
+
+    [Fact]
     public void Kind_Is38403()
     {
         Assert.Equal(38403, AgentAttestation.Kind);

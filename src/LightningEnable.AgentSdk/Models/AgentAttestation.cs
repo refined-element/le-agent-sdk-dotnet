@@ -70,7 +70,10 @@ public class AgentAttestation
         {
             new[] { "p", SubjectPubkey },
             new[] { "e", AgreementId },
-            new[] { "rating", Rating.ToString() }
+            new[] { "rating", Rating.ToString() },
+            new[] { "L", "nostr.agent.attestation" },
+            new[] { "l", "completed", "nostr.agent.attestation" },
+            new[] { "l", "commerce.service_completion", "nostr.agent.attestation" }
         };
 
         if (!string.IsNullOrEmpty(Proof))
