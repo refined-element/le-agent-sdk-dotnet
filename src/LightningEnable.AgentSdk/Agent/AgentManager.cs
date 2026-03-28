@@ -234,11 +234,10 @@ public class AgentManager : IAsyncDisposable
         {
             new[] { "p", subjectPubkey },
             new[] { "e", agreementId },
-            new[] { "rating", rating.ToString() },
-            new[] { "L", "nostr.agent.attestation" },
-            new[] { "l", "completed", "nostr.agent.attestation" },
-            new[] { "l", "commerce.service_completion", "nostr.agent.attestation" }
+            new[] { "rating", rating.ToString() }
         };
+
+        tags.AddRange(AgentAttestation.GetNip32LabelTags());
 
         if (!string.IsNullOrEmpty(proof))
             tags.Add(new[] { "proof", proof });
