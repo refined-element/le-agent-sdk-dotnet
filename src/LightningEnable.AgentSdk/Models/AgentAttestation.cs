@@ -19,6 +19,24 @@ public class AgentAttestation
 
     public const int Kind = 38403;
 
+    // NIP-32 label constants for attestation events (NIP-A5 spec).
+    // The namespace tag declares the label domain; both "l" tags are required:
+    //   - "completed" is the status label indicating the service was completed.
+    //   - "commerce.service_completion" is the domain label classifying the attestation type.
+    public const string Nip32Namespace = "nostr.agent.attestation";
+    public const string Nip32StatusLabel = "completed";
+    public const string Nip32DomainLabel = "commerce.service_completion";
+
+    /// <summary>
+    /// Returns the NIP-32 label tags required by the NIP-A5 spec for attestation events.
+    /// </summary>
+    public static string[][] GetNip32LabelTags() => new[]
+    {
+        new[] { "L", Nip32Namespace },
+        new[] { "l", Nip32StatusLabel, Nip32Namespace },
+        new[] { "l", Nip32DomainLabel, Nip32Namespace }
+    };
+
     public static AgentAttestation FromNostrEvent(JsonElement eventElement)
     {
         var att = new AgentAttestation();
@@ -72,6 +90,8 @@ public class AgentAttestation
             new[] { "e", AgreementId },
             new[] { "rating", Rating.ToString() }
         };
+
+        tags.AddRange(GetNip32LabelTags());
 
         if (!string.IsNullOrEmpty(Proof))
             tags.Add(new[] { "proof", Proof });

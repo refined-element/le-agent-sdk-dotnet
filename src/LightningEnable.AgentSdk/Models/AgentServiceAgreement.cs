@@ -19,6 +19,7 @@ public class AgentServiceAgreement
     public string Status { get; set; } = "pending";
     public string Content { get; set; } = string.Empty;
     public long ExpiresAt { get; set; }
+    public string? PaymentHash { get; set; }
 
     public const int AgreementKind = 38402;
 
@@ -70,9 +71,16 @@ public class AgentServiceAgreement
                         if (long.TryParse(tagArray[1], out var exp))
                             agreement.ExpiresAt = exp;
                         break;
+                    case "payment_hash":
+                        agreement.PaymentHash = tagArray[1];
+                        break;
                 }
             }
         }
+
+        // Enforce invariant: payment_hash only valid when status is completed
+        if (agreement.Status != "completed")
+            agreement.PaymentHash = null;
 
         return agreement;
     }
@@ -93,6 +101,9 @@ public class AgentServiceAgreement
 
         if (ExpiresAt > 0)
             tags.Add(new[] { "expiration", ExpiresAt.ToString() });
+
+        if (Status == "completed" && !string.IsNullOrEmpty(PaymentHash))
+            tags.Add(new[] { "payment_hash", PaymentHash });
 
         return tags.ToArray();
     }

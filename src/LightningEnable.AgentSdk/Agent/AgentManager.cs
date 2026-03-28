@@ -238,6 +238,8 @@ public class AgentManager : IAsyncDisposable
             new[] { "rating", rating.ToString() }
         };
 
+        tags.AddRange(AgentAttestation.GetNip32LabelTags());
+
         if (!string.IsNullOrEmpty(proof))
             tags.Add(new[] { "proof", proof });
 
