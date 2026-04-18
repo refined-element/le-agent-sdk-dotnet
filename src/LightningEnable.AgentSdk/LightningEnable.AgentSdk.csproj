@@ -5,12 +5,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>LightningEnable.AgentSdk</PackageId>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <Description>SDK for Lightning Enable Agent Service Agreements on Nostr</Description>
     <Authors>Lightning Enable</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/ArcadeLabsInc/lightning-enable-agent-sdk-dotnet</RepositoryUrl>
-    <PackageTags>nostr;lightning;l402;agents;bitcoin</PackageTags>
+    <RepositoryUrl>https://github.com/refined-element/le-agent-sdk-dotnet</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/refined-element/le-agent-sdk-dotnet</PackageProjectUrl>
+    <PackageTags>nostr;lightning;l402;agents;bitcoin;asa;sdk;agent-commerce</PackageTags>
+    <PackageReleaseNotes>0.3.1 — Metadata fix: correct repository URL.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
