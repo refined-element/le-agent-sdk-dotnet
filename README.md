@@ -131,11 +131,12 @@ if (!result.Success && result.Challenge != null)
 
 ## Nostr Event Kinds
 
-| Kind  | Description              | Model                  |
-|-------|--------------------------|------------------------|
-| 38401 | Agent Capability         | `AgentCapability`      |
-| 38402 | Service Request/Agreement| `AgentServiceRequest`  |
-| 38403 | Agent Attestation        | `AgentAttestation`     |
+| Kind  | Description       | Model                  |
+|-------|-------------------|------------------------|
+| 38400 | Agent Capability  | `AgentCapability`      |
+| 38401 | Service Request   | `AgentServiceRequest`  |
+| 38402 | Service Agreement | `AgentServiceAgreement`|
+| 38403 | Agent Attestation | `AgentAttestation`     |
 
 ## Building
 

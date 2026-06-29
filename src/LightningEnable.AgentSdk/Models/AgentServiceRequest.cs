@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace LightningEnable.AgentSdk.Models;
 
 /// <summary>
-/// Represents a service request from a consumer to a provider (NIP kind 38402).
+/// Represents a service request from a consumer to a provider (Nostr kind 38401).
 /// </summary>
 public class AgentServiceRequest
 {
@@ -17,7 +17,7 @@ public class AgentServiceRequest
     public Dictionary<string, string> Parameters { get; set; } = new();
     public string Content { get; set; } = string.Empty;
 
-    public const int Kind = 38402;
+    public const int Kind = 38401;
 
     public static AgentServiceRequest FromNostrEvent(JsonElement eventElement)
     {

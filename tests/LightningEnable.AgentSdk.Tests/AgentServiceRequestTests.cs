@@ -13,7 +13,7 @@ public class AgentServiceRequestTests
             "id": "req-123",
             "pubkey": "consumer-pub",
             "created_at": 1700000100,
-            "kind": 38402,
+            "kind": 38401,
             "content": "Please do the thing",
             "tags": [
                 ["e", "cap-id-abc"],
@@ -62,8 +62,8 @@ public class AgentServiceRequestTests
     }
 
     [Fact]
-    public void Kind_Is38402()
+    public void Kind_Is38401()
     {
-        Assert.Equal(38402, AgentServiceRequest.Kind);
+        Assert.Equal(38401, AgentServiceRequest.Kind);
     }
 }
