@@ -5,14 +5,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>LightningEnable.AgentSdk</PackageId>
-    <Version>0.3.1</Version>
+    <Version>0.3.2</Version>
     <Description>SDK for Lightning Enable Agent Service Agreements on Nostr</Description>
     <Authors>Lightning Enable</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/refined-element/le-agent-sdk-dotnet</RepositoryUrl>
     <PackageProjectUrl>https://github.com/refined-element/le-agent-sdk-dotnet</PackageProjectUrl>
     <PackageTags>nostr;lightning;l402;agents;bitcoin;asa;sdk;agent-commerce</PackageTags>
-    <PackageReleaseNotes>0.3.1 — Metadata fix: correct repository URL.</PackageReleaseNotes>
+    <PackageReleaseNotes>0.3.2 — Wire-interop bug fix: corrected AgentCapability.Kind (38400) and AgentServiceRequest.Kind (38401). Previous releases published at wrong kinds and could not interoperate with the Python/TypeScript SDKs or the Lightning Enable MCP server. Also adds runnable examples/.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
