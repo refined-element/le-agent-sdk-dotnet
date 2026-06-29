@@ -13,7 +13,7 @@ public class AgentCapabilityTests
             "id": "abc123",
             "pubkey": "def456",
             "created_at": 1700000000,
-            "kind": 38401,
+            "kind": 38400,
             "content": "A test capability",
             "tags": [
                 ["d", "test-cap-1"],
@@ -91,7 +91,7 @@ public class AgentCapabilityTests
             id = "fake-id",
             pubkey = "fake-pubkey",
             created_at = 1700000000L,
-            kind = 38401,
+            kind = 38400,
             content = original.Description,
             tags
         };
@@ -107,9 +107,9 @@ public class AgentCapabilityTests
     }
 
     [Fact]
-    public void Kind_Is38401()
+    public void Kind_Is38400()
     {
-        Assert.Equal(38401, AgentCapability.Kind);
+        Assert.Equal(38400, AgentCapability.Kind);
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class AgentCapabilityTests
             "id": "n1",
             "pubkey": "pk",
             "created_at": 1,
-            "kind": 38401,
+            "kind": 38400,
             "content": "",
             "tags": [
                 ["d", "svc"],
@@ -168,7 +168,7 @@ public class AgentCapabilityTests
             "id": "n2",
             "pubkey": "pk",
             "created_at": 1,
-            "kind": 38401,
+            "kind": 38400,
             "content": "",
             "tags": [
                 ["d", "svc"],

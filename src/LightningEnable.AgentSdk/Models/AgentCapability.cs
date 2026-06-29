@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace LightningEnable.AgentSdk.Models;
 
 /// <summary>
-/// Represents an agent capability advertisement (NIP kind 38401).
+/// Represents an agent capability advertisement (Nostr kind 38400).
 /// Describes what service an agent offers and at what price.
 /// </summary>
 public class AgentCapability
@@ -22,7 +22,7 @@ public class AgentCapability
     public bool Negotiable { get; set; } = true;
     public int? MinPriceSats { get; set; }
 
-    public const int Kind = 38401;
+    public const int Kind = 38400;
 
     /// <summary>
     /// Parse an AgentCapability from a Nostr event JSON element.
