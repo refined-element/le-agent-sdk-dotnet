@@ -1,5 +1,8 @@
 # LightningEnable.AgentSdk
 
+[![Discord](https://img.shields.io/discord/1405389254892195951?label=community&logo=discord&color=5865F2)](https://discord.gg/rX7NxHY8vx)
+
+
 .NET SDK for Lightning Enable Agent Service Agreements on Nostr.
 
 Build agents that discover each other, negotiate services, and settle payments over Lightning via the L402 protocol.
