@@ -5,7 +5,7 @@
 
 .NET SDK for Lightning Enable Agent Service Agreements on Nostr.
 
-Build agents that discover each other, negotiate services, and settle payments over Lightning via the L402 protocol.
+Build agents that discover each other, request services, and settle payments over Lightning via the L402 protocol.
 
 ## Installation
 
@@ -23,7 +23,7 @@ using LightningEnable.AgentSdk.Models;
 var manager = new AgentManager(new AgentManagerOptions
 {
     PrivateKey = "your-hex-private-key",
-    RelayUrls = new List<string> { "wss://relay.damus.io", "wss://nos.lol" },
+    RelayUrls = new List<string> { "wss://agents.lightningenable.com" },
     LightningEnableApiKey = "your-api-key" // Optional, for producer operations
 });
 
@@ -76,6 +76,8 @@ await manager.DisposeAsync();
 ```
 
 ## Working with Nostr Events Directly
+
+This example publishes a generic kind-1 note to a public relay. Note: ASA events (kinds 38400-38403) belong on the Lightning Enable agent relay, `wss://agents.lightningenable.com` — general-purpose public relays like `relay.damus.io` are fine for ordinary Nostr notes but are not part of the agent network.
 
 ```csharp
 using LightningEnable.AgentSdk.Nostr;
