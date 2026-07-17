@@ -32,7 +32,7 @@ public class NostrRelay : IAsyncDisposable
     /// Subscribe to events matching the given filters.
     /// Returns the subscription ID.
     /// </summary>
-    public async Task<string> SubscribeAsync(object[] filters, CancellationToken ct = default)
+    public virtual async Task<string> SubscribeAsync(object[] filters, CancellationToken ct = default)
     {
         EnsureConnected();
 
@@ -50,7 +50,7 @@ public class NostrRelay : IAsyncDisposable
     /// Publish a signed event to the relay.
     /// Returns true if the relay accepted the event (received OK).
     /// </summary>
-    public async Task<bool> PublishAsync(NostrEventData evt, CancellationToken ct = default)
+    public virtual async Task<bool> PublishAsync(NostrEventData evt, CancellationToken ct = default)
     {
         EnsureConnected();
 
@@ -87,7 +87,7 @@ public class NostrRelay : IAsyncDisposable
     /// <summary>
     /// Listen for events from active subscriptions.
     /// </summary>
-    public async IAsyncEnumerable<NostrEventData> ListenAsync(
+    public virtual async IAsyncEnumerable<NostrEventData> ListenAsync(
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         EnsureConnected();
@@ -140,7 +140,7 @@ public class NostrRelay : IAsyncDisposable
     /// <summary>
     /// Close a specific subscription.
     /// </summary>
-    public async Task CloseSubscriptionAsync(string subId, CancellationToken ct = default)
+    public virtual async Task CloseSubscriptionAsync(string subId, CancellationToken ct = default)
     {
         if (!_activeSubscriptions.ContainsKey(subId))
             return;
@@ -152,7 +152,7 @@ public class NostrRelay : IAsyncDisposable
         _activeSubscriptions.Remove(subId);
     }
 
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (_ws != null)
         {
