@@ -8,6 +8,12 @@ namespace LightningEnable.AgentSdk.Tests;
 /// Covers what the manager does with relay outcomes: publishes that no relay
 /// accepted, and events a relay could not prove were signed by their author.
 /// </summary>
+/// <remarks>
+/// In the "ConsoleCapture" collection because DiscoverAsync_SkipsAMalformedPriceEvent...
+/// redirects the process-global Console.Error; the collection serializes it against the
+/// other stderr-capturing class so their captures never race.
+/// </remarks>
+[Collection("ConsoleCapture")]
 public class AgentManagerRelayTests
 {
     private const string TestPrivateKey = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
