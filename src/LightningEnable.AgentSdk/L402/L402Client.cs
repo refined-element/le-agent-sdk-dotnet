@@ -12,12 +12,60 @@ public partial class L402Client : IDisposable
 {
     private static readonly Regex PreimageRegex = GetPreimageRegex();
     private static readonly Regex AuthParamRegex = GetAuthParamRegex();
+    private static readonly Regex InvoiceAmountRegex = GetInvoiceAmountRegex();
 
     [GeneratedRegex(@"^[a-fA-F0-9]+$")]
     private static partial Regex GetPreimageRegex();
 
     [GeneratedRegex(@"([!#$%&'*+\-.^_`|~0-9A-Za-z]+)\s*=\s*(?:""([^""]*)""|(\S+?))\s*(?:,|$)")]
     private static partial Regex GetAuthParamRegex();
+
+    [GeneratedRegex(@"^ln\w+?(\d+)([munp])1")]
+    private static partial Regex GetInvoiceAmountRegex();
+
+    /// <summary>
+    /// Decode the amount, in satoshis, encoded in a BOLT-11 invoice.
+    /// </summary>
+    /// <returns>
+    /// The amount in sats, or null when the invoice encodes no amount or could not
+    /// be parsed. A caller enforcing a budget must treat null as "refuse", never as
+    /// "unlimited": an amountless invoice lets the payee claim any amount.
+    /// </returns>
+    public static int? DecodeInvoiceAmountSats(string invoice)
+    {
+        if (string.IsNullOrEmpty(invoice))
+            return null;
+
+        var inv = invoice.ToLowerInvariant();
+        if (inv.StartsWith("lightning:", StringComparison.Ordinal))
+            inv = inv[10..];
+
+        var match = InvoiceAmountRegex.Match(inv);
+        if (!match.Success)
+            return null;
+
+        if (!long.TryParse(match.Groups[1].Value, out var amount))
+            return null;
+
+        // BOLT-11 multipliers, as a fraction of 1 BTC.
+        var btc = match.Groups[2].Value switch
+        {
+            "m" => amount * 0.001m,
+            "u" => amount * 0.000001m,
+            "n" => amount * 0.000000001m,
+            "p" => amount * 0.000000000001m,
+            _ => -1m
+        };
+
+        if (btc < 0)
+            return null;
+
+        var sats = Math.Round(btc * 100_000_000m, MidpointRounding.AwayFromZero);
+        if (sats > int.MaxValue)
+            return null;
+
+        return (int)sats;
+    }
 
     private readonly HttpClient _httpClient;
     private readonly bool _ownsClient;

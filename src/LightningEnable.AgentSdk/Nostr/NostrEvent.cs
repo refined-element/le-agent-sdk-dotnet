@@ -11,20 +11,91 @@ namespace LightningEnable.AgentSdk.Nostr;
 public static class NostrEvent
 {
     /// <summary>
+    /// Serialize an event to its canonical NIP-01 form for ID computation:
+    /// [0, pubkey, created_at, kind, tags, content]
+    /// </summary>
+    /// <remarks>
+    /// The escaping rules are written out explicitly rather than delegated to
+    /// JsonSerializer because the event ID is a cross-implementation consensus
+    /// value. NIP-01 escapes only ", \ and the C0 control characters; every other
+    /// character — non-ASCII, &lt;, &amp;, +, and astral-plane characters — is
+    /// emitted literally. JsonSerializer's default encoder escapes the
+    /// HTML-sensitive characters and all non-ASCII, and even
+    /// JavaScriptEncoder.UnsafeRelaxedJsonEscaping still escapes characters above
+    /// the BMP, so either would compute an ID that no other client agrees with.
+    /// </remarks>
+    public static string SerializeForId(string pubkey, long createdAt, int kind, string[][] tags, string content)
+    {
+        var sb = new StringBuilder();
+
+        sb.Append("[0,");
+        AppendCanonicalString(sb, pubkey);
+        sb.Append(',').Append(createdAt);
+        sb.Append(',').Append(kind);
+        sb.Append(",[");
+
+        for (var i = 0; i < tags.Length; i++)
+        {
+            if (i > 0) sb.Append(',');
+            sb.Append('[');
+
+            var tag = tags[i];
+            for (var j = 0; j < tag.Length; j++)
+            {
+                if (j > 0) sb.Append(',');
+                AppendCanonicalString(sb, tag[j] ?? string.Empty);
+            }
+
+            sb.Append(']');
+        }
+
+        sb.Append("],");
+        AppendCanonicalString(sb, content);
+        sb.Append(']');
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Append a JSON string literal using NIP-01's escaping rules, matching
+    /// JavaScript's JSON.stringify and Python's json.dumps(ensure_ascii=False).
+    /// </summary>
+    private static void AppendCanonicalString(StringBuilder sb, string value)
+    {
+        sb.Append('"');
+
+        foreach (var ch in value)
+        {
+            switch (ch)
+            {
+                case '"': sb.Append("\\\""); break;
+                case '\\': sb.Append("\\\\"); break;
+                case '\n': sb.Append("\\n"); break;
+                case '\r': sb.Append("\\r"); break;
+                case '\t': sb.Append("\\t"); break;
+                case '\b': sb.Append("\\b"); break;
+                case '\f': sb.Append("\\f"); break;
+                default:
+                    if (ch < 0x20)
+                        sb.Append("\\u").Append(((int)ch).ToString("x4"));
+                    else
+                        // Surrogate pairs are appended one UTF-16 unit at a time
+                        // and recombine into the original character.
+                        sb.Append(ch);
+                    break;
+            }
+        }
+
+        sb.Append('"');
+    }
+
+    /// <summary>
     /// Compute the event ID as SHA-256 of the canonical serialization.
     /// [0, pubkey, created_at, kind, tags, content]
     /// </summary>
     public static string ComputeId(string pubkey, long createdAt, int kind, string[][] tags, string content)
     {
-        var serialized = JsonSerializer.Serialize(new object[]
-        {
-            0,
-            pubkey,
-            createdAt,
-            kind,
-            tags,
-            content
-        });
+        var serialized = SerializeForId(pubkey, createdAt, kind, tags, content);
 
         var hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(serialized));
         return Convert.ToHexString(hash).ToLowerInvariant();

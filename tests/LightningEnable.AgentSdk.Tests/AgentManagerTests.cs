@@ -94,4 +94,15 @@ public class AgentManagerTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => manager.CreateChallengeAsync(agreement, 100, "test"));
     }
+
+    [Fact]
+    public void Options_DefaultRelayIsTheAgentRelay()
+    {
+        // ASA events are kinds 38400-38403. A general-purpose relay drops them, so a
+        // default-constructed agent would "successfully" publish into a void and
+        // discover nothing -- making an outage indistinguishable from an empty market.
+        var options = new AgentManagerOptions();
+
+        Assert.Equal(new List<string> { "wss://agents.lightningenable.com" }, options.RelayUrls);
+    }
 }

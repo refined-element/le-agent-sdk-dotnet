@@ -181,4 +181,111 @@ public class AgentCapabilityTests
         Assert.True(cap.Negotiable);
         Assert.Equal(10000, cap.MinPriceSats);
     }
+
+    // --- Malformed price tags ---
+
+    [Fact]
+    public void FromNostrEvent_RejectsANonNumericPrice()
+    {
+        // int.TryParse fails and leaves PriceSats at its default of 0, i.e. the
+        // capability reads as FREE. A malformed price must reject the capability,
+        // never quietly become a price of zero.
+        var json = """
+        {
+            "id": "abc123",
+            "pubkey": "def456",
+            "created_at": 1700000000,
+            "kind": 38400,
+            "content": "A test capability",
+            "tags": [["d", "cap"], ["price", "not-a-number"]]
+        }
+        """;
+
+        var element = JsonDocument.Parse(json).RootElement;
+
+        var ex = Assert.Throws<FormatException>(() => AgentCapability.FromNostrEvent(element));
+        Assert.Contains("price", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void FromNostrEvent_RejectsAnEmptyPrice()
+    {
+        var json = """
+        {
+            "id": "abc123",
+            "kind": 38400,
+            "tags": [["d", "cap"], ["price", ""]]
+        }
+        """;
+
+        var element = JsonDocument.Parse(json).RootElement;
+
+        Assert.Throws<FormatException>(() => AgentCapability.FromNostrEvent(element));
+    }
+
+    [Fact]
+    public void FromNostrEvent_RejectsAPriceWithATrailingSuffix()
+    {
+        var json = """
+        {
+            "id": "abc123",
+            "kind": 38400,
+            "tags": [["d", "cap"], ["price", "100sats"]]
+        }
+        """;
+
+        var element = JsonDocument.Parse(json).RootElement;
+
+        Assert.Throws<FormatException>(() => AgentCapability.FromNostrEvent(element));
+    }
+
+    [Fact]
+    public void FromNostrEvent_RejectsAMalformedNegotiableFloor()
+    {
+        var json = """
+        {
+            "id": "abc123",
+            "kind": 38400,
+            "tags": [["d", "cap"], ["negotiable", "floor", "not-a-number"]]
+        }
+        """;
+
+        var element = JsonDocument.Parse(json).RootElement;
+
+        Assert.Throws<FormatException>(() => AgentCapability.FromNostrEvent(element));
+    }
+
+    [Fact]
+    public void FromNostrEvent_StillParsesAWellFormedPrice()
+    {
+        var json = """
+        {
+            "id": "abc123",
+            "kind": 38400,
+            "tags": [["d", "cap"], ["price", "250"]]
+        }
+        """;
+
+        var element = JsonDocument.Parse(json).RootElement;
+        var cap = AgentCapability.FromNostrEvent(element);
+
+        Assert.Equal(250, cap.PriceSats);
+    }
+
+    [Fact]
+    public void FromNostrEvent_StillParsesAZeroPriceAsFree()
+    {
+        var json = """
+        {
+            "id": "abc123",
+            "kind": 38400,
+            "tags": [["d", "cap"], ["price", "0"]]
+        }
+        """;
+
+        var element = JsonDocument.Parse(json).RootElement;
+        var cap = AgentCapability.FromNostrEvent(element);
+
+        Assert.Equal(0, cap.PriceSats);
+    }
 }

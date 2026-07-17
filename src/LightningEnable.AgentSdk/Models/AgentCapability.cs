@@ -25,8 +25,32 @@ public class AgentCapability
     public const int Kind = 38400;
 
     /// <summary>
+    /// Parse a satoshi amount from a tag value.
+    /// </summary>
+    /// <remarks>
+    /// Rejects the capability rather than falling back to a default. int.TryParse
+    /// leaves the amount at 0 when it fails, which reads as FREE — so a malformed
+    /// or hostile price tag would advertise a paid service as costing nothing.
+    /// </remarks>
+    /// <exception cref="FormatException">The value is not a plain integer.</exception>
+    private static int ParseSats(string value, string tagName)
+    {
+        if (!int.TryParse(value, System.Globalization.NumberStyles.AllowLeadingSign,
+                System.Globalization.CultureInfo.InvariantCulture, out var sats))
+        {
+            throw new FormatException(
+                $"Invalid {tagName} tag: \"{value}\" is not a valid integer amount of sats.");
+        }
+
+        return sats;
+    }
+
+    /// <summary>
     /// Parse an AgentCapability from a Nostr event JSON element.
     /// </summary>
+    /// <exception cref="FormatException">
+    /// A price or negotiable-floor tag carries a malformed amount.
+    /// </exception>
     public static AgentCapability FromNostrEvent(JsonElement eventElement)
     {
         var cap = new AgentCapability();
@@ -68,8 +92,7 @@ public class AgentCapability
                         cap.OutputSchema = tagArray[1];
                         break;
                     case "price":
-                        if (int.TryParse(tagArray[1], out var price))
-                            cap.PriceSats = price;
+                        cap.PriceSats = ParseSats(tagArray[1], "price");
                         break;
                     case "endpoint":
                         cap.Endpoint = tagArray[1];
@@ -89,8 +112,7 @@ public class AgentCapability
                         else if (tagArray[1] == "floor" && tagArray.Length > 2)
                         {
                             cap.Negotiable = true;
-                            if (int.TryParse(tagArray[2], out var floor))
-                                cap.MinPriceSats = floor;
+                            cap.MinPriceSats = ParseSats(tagArray[2], "negotiable floor");
                         }
                         break;
                 }
