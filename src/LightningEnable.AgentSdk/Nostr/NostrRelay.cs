@@ -111,29 +111,79 @@ public class NostrRelay : IAsyncDisposable
             if (message == null)
                 continue;
 
-            NostrEventData? evt = null;
-            try
-            {
-                var doc = JsonDocument.Parse(message);
-                var root = doc.RootElement;
-
-                if (root.GetArrayLength() >= 3 && root[0].GetString() == "EVENT")
-                {
-                    evt = NostrEvent.FromJson(root[2]);
-                }
-                else if (root.GetArrayLength() >= 2 && root[0].GetString() == "EOSE")
-                {
-                    // End of stored events, continue listening
-                    continue;
-                }
-            }
-            catch (JsonException)
-            {
-                continue;
-            }
-
+            // Parse each wire message defensively. A valid-JSON-but-hostile-shaped
+            // message must skip only that one message, never abort the stream — this
+            // is the same one-bad-event DoS boundary as capability parsing, but one
+            // layer earlier (before IsAuthentic), so an attacker needs no valid
+            // signature to trigger it. TryParseEventMessage never throws, so nothing
+            // here can propagate out of the enumerator and abort DiscoverAsync /
+            // GetReputationAsync / any other ListenAsync consumer.
+            var evt = TryParseEventMessage(message);
             if (evt != null)
                 yield return evt;
+        }
+    }
+
+    /// <summary>
+    /// Parse a single relay wire message into a Nostr event, or return null to skip.
+    /// </summary>
+    /// <remarks>
+    /// NEVER throws. The old inline parse caught only <see cref="JsonException"/>, so a
+    /// valid-JSON-but-hostile-shaped message (top-level not an array, or an EVENT whose
+    /// <c>created_at</c>/<c>kind</c> is a string, or whose <c>tags</c> is not an array)
+    /// threw <see cref="InvalidOperationException"/> out of the async enumerator and
+    /// aborted the whole listen loop — one unsigned message DoS-ing discovery for every
+    /// agent. Everything that is genuinely malformed is skipped LOUDLY (per the repo's
+    /// Console.Error diagnostic convention, since this SDK has no ILogger); legitimate
+    /// non-EVENT control messages (EOSE / NOTICE / OK / CLOSED) are skipped QUIETLY
+    /// because they are not errors. The document is disposed via <c>using</c> — the old
+    /// inline code leaked it.
+    /// </remarks>
+    internal static NostrEventData? TryParseEventMessage(string message)
+    {
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(message);
+        }
+        catch (JsonException ex)
+        {
+            Console.Error.WriteLine(
+                $"[LightningEnable.AgentSdk] Skipping non-JSON relay message: {ex.Message}");
+            return null;
+        }
+
+        using (doc)
+        {
+            var root = doc.RootElement;
+
+            // Not a recognizable Nostr relay message (["<TYPE>", ...]) — ignore quietly;
+            // this is not an error. GetArrayLength/indexing below are guarded by the
+            // ValueKind check short-circuiting first.
+            if (root.ValueKind != JsonValueKind.Array || root.GetArrayLength() < 1
+                || root[0].ValueKind != JsonValueKind.String)
+                return null;
+
+            // EOSE / NOTICE / OK / CLOSED / anything non-EVENT — nothing to yield, and
+            // NOT malformed, so it must not warn (preserves the old silent EOSE continue).
+            if (root[0].GetString() != "EVENT" || root.GetArrayLength() < 3)
+                return null;
+
+            try
+            {
+                return NostrEvent.FromJson(root[2]);
+            }
+            catch (Exception ex)
+            {
+                // Broad by design: root[2] is fully attacker-controlled and FromJson has
+                // many non-JsonException throw vectors (GetInt64/GetInt32 on a string,
+                // EnumerateArray on a non-array, TryGetProperty on a non-object). No
+                // cancellation token flows into this pure parse, so no OperationCanceled
+                // is possible here — catching Exception cannot swallow the timeout signal.
+                Console.Error.WriteLine(
+                    $"[LightningEnable.AgentSdk] Skipping malformed EVENT from relay: {ex.Message}");
+                return null;
+            }
         }
     }
 

@@ -173,9 +173,43 @@ public class AgentManager : IAsyncDisposable
                 if (!IsAuthentic(evt))
                     continue;
 
-                var json = NostrEvent.ToJson(evt);
-                var doc = JsonDocument.Parse(json);
-                var cap = AgentCapability.FromNostrEvent(doc.RootElement);
+                // Parse each event INDEPENDENTLY. A single malformed capability
+                // (e.g. an unparseable price tag) must skip only that one event and
+                // never abort discovery — one hostile relay publishing one bad
+                // event would otherwise DoS discovery for every agent and discard
+                // every capability collected so far. Fail closed, LOUDLY: reject the
+                // bad event but make the skip observable. This SDK has no ILogger, so
+                // per the repo's existing diagnostic convention (Console.Error, see
+                // examples/SimpleProvider) a stderr warning is the minimal way to keep
+                // the skip from being silent.
+                //
+                // This is a hostile-input DoS boundary: the try wraps ONLY the parse
+                // of an untrusted event — IsAuthentic/crypto already ran before it and
+                // there is no I/O inside — so the only failures possible here are
+                // bad-input failures, all of which must be tolerated. Enumerating
+                // exception types (FormatException/JsonException) would leave every
+                // other throw vector live, which is exactly the mistake logged against
+                // the sibling #41 finding ("fixing only the reported line leaves every
+                // throw vector live"). The `is not OperationCanceledException` guard
+                // catches every parse failure while letting the OCE raised when the
+                // timeout above fires still break the loop via the outer catch — the
+                // cancellation signal is never swallowed. Matches the Python
+                // (`except Exception`) and TS (untyped `catch`) ports.
+                AgentCapability cap;
+                try
+                {
+                    var json = NostrEvent.ToJson(evt);
+                    var doc = JsonDocument.Parse(json);
+                    cap = AgentCapability.FromNostrEvent(doc.RootElement);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    Console.Error.WriteLine(
+                        $"[LightningEnable.AgentSdk] Skipping malformed capability event " +
+                        $"{evt.Id}: {ex.Message}");
+                    continue;
+                }
+
                 capabilities.Add(cap);
             }
         }

@@ -8,6 +8,12 @@ namespace LightningEnable.AgentSdk.Tests;
 /// Covers what the manager does with relay outcomes: publishes that no relay
 /// accepted, and events a relay could not prove were signed by their author.
 /// </summary>
+/// <remarks>
+/// In the "ConsoleCapture" collection because DiscoverAsync_SkipsAMalformedPriceEvent...
+/// redirects the process-global Console.Error; the collection serializes it against the
+/// other stderr-capturing class so their captures never race.
+/// </remarks>
+[Collection("ConsoleCapture")]
 public class AgentManagerRelayTests
 {
     private const string TestPrivateKey = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
@@ -168,6 +174,57 @@ public class AgentManagerRelayTests
         Assert.Equal("ok", caps[0].DTag);
         Assert.Equal(100, caps[0].PriceSats);
         Assert.Equal(NostrEvent.GetPublicKey(TestPrivateKey), caps[0].Pubkey);
+    }
+
+    // --- Resilience to malformed capability events (ledger #41) ---
+
+    [Fact]
+    public async Task DiscoverAsync_SkipsAMalformedPriceEventAndKeepsTheValidOnes()
+    {
+        // A single genuinely-signed capability event with an unparseable price must
+        // not abort the whole DiscoverAsync call — otherwise one hostile relay
+        // publishing one bad event DoS-es discovery for every agent. The malformed
+        // event is legitimately signed (so it passes IsAuthentic and reaches the
+        // parse step) and sits BETWEEN two valid events, proving the loop neither
+        // aborts nor discards capabilities collected before the bad one.
+        var first = NostrEvent.Create(
+            AgentCapability.Kind, "First",
+            new[] { new[] { "d", "first" }, new[] { "price", "100" } }, TestPrivateKey);
+        var malformed = NostrEvent.Create(
+            AgentCapability.Kind, "Malformed",
+            new[] { new[] { "d", "malformed" }, new[] { "price", "abc" } }, TestPrivateKey);
+        var second = NostrEvent.Create(
+            AgentCapability.Kind, "Second",
+            new[] { new[] { "d", "second" }, new[] { "price", "200" } }, TestPrivateKey);
+
+        var relay = new FakeRelay(eventsToStream: new[] { first, malformed, second });
+        var manager = new AgentManager(Options(), new[] { relay });
+
+        // Capture stderr so we can assert the skip was LOUD, not silent. The fix
+        // has no ILogger and warns via Console.Error, so redirect it around the call.
+        var originalError = Console.Error;
+        var captured = new StringWriter();
+        List<AgentCapability> caps;
+        try
+        {
+            Console.SetError(captured);
+            caps = await manager.DiscoverAsync();
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+
+        Assert.Equal(2, caps.Count);
+        Assert.Contains(caps, c => c.DTag == "first");
+        Assert.Contains(caps, c => c.DTag == "second");
+        Assert.DoesNotContain(caps, c => c.DTag == "malformed");
+
+        // The skip must be observable: the warning names the malformed event's id
+        // and says it was skipped.
+        var warning = captured.ToString();
+        Assert.Contains(malformed.Id, warning);
+        Assert.Contains("Skipping malformed capability event", warning);
     }
 
     [Fact]
