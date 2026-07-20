@@ -24,4 +24,17 @@
     <ProjectReference Include="..\..\src\LightningEnable.AgentSdk\LightningEnable.AgentSdk.csproj" />
   </ItemGroup>
 
+  <!-- Shared port-drift conformance vectors (see conformance/README.md).
+       Linked from the repo-root conformance/ dir and copied next to the test
+       DLL so ConformanceTests can read them at runtime. dotnet build copies them,
+       so a no-build test run in CI still finds them. -->
+  <ItemGroup>
+    <None Include="..\..\conformance\vectors\*.json"
+          Link="conformance\vectors\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\conformance\CHECKSUMS"
+          Link="conformance\CHECKSUMS"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
