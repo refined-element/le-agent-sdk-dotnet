@@ -171,6 +171,35 @@ public class AgentManagerSettleTests
     }
 
     [Fact]
+    public async Task SettleAsync_RefusesACraftedDataPartInvoiceEvenWhenNoMaximumIsConfigured()
+    {
+        // Ledger #74 (fail-open / decoder-disagreement): a crafted invoice whose
+        // only "amount" hides in the bech32 data part ("lnbc1p5u1foo" — real HRP
+        // "lnbc1p5u", encoding no amount). Pre-fix the decoder scanned into the
+        // data part and returned a bogus positive 500 sats, which passed the #71
+        // null/<=0 guard and was handed to the wallet with a fabricated budget.
+        // It must now be refused outright, with NO ceiling configured.
+        var payCalled = false;
+        var options = new AgentManagerOptions
+        {
+            PrivateKey = TestPrivateKey,
+            HttpClient = new HttpClient(new L402Endpoint("lnbc1p5u1foo")),
+            // MaxAmountSats deliberately left unset (null).
+            PayInvoiceCallback = (invoice, ct) =>
+            {
+                payCalled = true;
+                return Task.FromResult(Preimage);
+            }
+        };
+        var manager = new AgentManager(options);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => manager.SettleAsync(Agreement()));
+        Assert.Contains("no amount", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(payCalled);
+    }
+
+    [Fact]
     public async Task SettleAsync_PaysAKnownAmountWhenNoMaximumIsConfigured()
     {
         // The other half of ledger #71: the fail-closed fix must not force every
