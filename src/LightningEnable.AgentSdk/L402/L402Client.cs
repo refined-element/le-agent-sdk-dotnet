@@ -20,7 +20,11 @@ public partial class L402Client : IDisposable
     [GeneratedRegex(@"([!#$%&'*+\-.^_`|~0-9A-Za-z]+)\s*=\s*(?:""([^""]*)""|(\S+?))\s*(?:,|$)")]
     private static partial Regex GetAuthParamRegex();
 
-    [GeneratedRegex(@"^ln\w+?(\d+)([munp])1")]
+    // BOLT-11 human-readable part (HRP): "ln" + currency prefix + optional amount
+    // + optional multiplier, anchored end-to-end with $ so a digit run inside the
+    // bech32 DATA part can never be mistaken for the amount. Longer currency
+    // prefixes precede their own prefixes because .NET alternation is ordered.
+    [GeneratedRegex(@"^ln(?:bcrt|bc|tbs|tb|sb)(\d+)?([munp])?$")]
     private static partial Regex GetInvoiceAmountRegex();
 
     /// <summary>
@@ -31,31 +35,54 @@ public partial class L402Client : IDisposable
     /// be parsed. A caller enforcing a budget must treat null as "refuse", never as
     /// "unlimited": an amountless invoice lets the payee claim any amount.
     /// </returns>
+    /// <remarks>
+    /// The amount is read ONLY from the human-readable part — everything before the
+    /// final bech32 separator ("1"). Per BIP-173 the data charset excludes "1", so
+    /// the LAST "1" is the true separator and every earlier "1" belongs to the HRP.
+    /// The old <c>^ln\w+?(\d+)([munp])1</c> regex was lazy and scanned forward into
+    /// the data part, so a crafted invoice such as <c>lnbc1p5u1foo</c> (whose real
+    /// HRP, "lnbc1p5u", encodes no valid amount) surfaced a bogus positive 500 sats
+    /// from its data part — that fabricated amount then slipped past the #71 budget
+    /// guard (a fail-open / decoder-disagreement attack, ledger #74).
+    /// </remarks>
     public static int? DecodeInvoiceAmountSats(string invoice)
     {
         if (string.IsNullOrEmpty(invoice))
             return null;
 
-        var inv = invoice.ToLowerInvariant();
+        var inv = invoice.ToLowerInvariant().Trim();
         if (inv.StartsWith("lightning:", StringComparison.Ordinal))
             inv = inv[10..];
 
-        var match = InvoiceAmountRegex.Match(inv);
+        // Isolate the HRP: everything before the LAST "1" (the bech32 separator).
+        var separator = inv.LastIndexOf('1');
+        if (separator < 0)
+            return null;
+        var hrp = inv[..separator];
+
+        var match = InvoiceAmountRegex.Match(hrp);
         if (!match.Success)
+            return null;
+
+        // No amount group => amountless invoice (payer chooses) => unknown.
+        if (!match.Groups[1].Success || match.Groups[1].Value.Length == 0)
             return null;
 
         if (!long.TryParse(match.Groups[1].Value, out var amount))
             return null;
 
-        // BOLT-11 multipliers, as a fraction of 1 BTC.
-        var btc = match.Groups[2].Value switch
-        {
-            "m" => amount * 0.001m,
-            "u" => amount * 0.000001m,
-            "n" => amount * 0.000000001m,
-            "p" => amount * 0.000000000001m,
-            _ => -1m
-        };
+        // BOLT-11 multipliers, as a fraction of 1 BTC. An absent multiplier means
+        // the amount is denominated in whole BTC.
+        var btc = match.Groups[2].Success
+            ? match.Groups[2].Value switch
+            {
+                "m" => amount * 0.001m,
+                "u" => amount * 0.000001m,
+                "n" => amount * 0.000000001m,
+                "p" => amount * 0.000000000001m,
+                _ => -1m
+            }
+            : amount * 1m;
 
         if (btc < 0)
             return null;
