@@ -324,13 +324,14 @@ public class AgentManager : IAsyncDisposable
     }
 
     /// <summary>
-    /// Hold a challenge to the configured spending ceiling before any payment is made.
+    /// Gate a challenge before any payment is made. Two independent rules (ledger #71):
+    /// (1) an amount that cannot be determined is ALWAYS refused, ceiling or not;
+    /// (2) the ceiling comparison applies only when <see cref="AgentManagerOptions.MaxAmountSats"/>
+    /// is configured.
     /// </summary>
     private void EnsureWithinBudget(L402ChallengeResponse challenge)
     {
         var max = _options.MaxAmountSats;
-        if (max == null)
-            return;
 
         // Prefer an amount the challenge states outright, then fall back to the
         // amount encoded in the invoice itself.
@@ -338,18 +339,24 @@ public class AgentManager : IAsyncDisposable
             ? challenge.PriceSats
             : L402Client.DecodeInvoiceAmountSats(challenge.Invoice);
 
-        // An amount we cannot determine cannot be checked against the ceiling, and
-        // must not be read as "no limit applies" -- an amountless invoice would let
-        // the payee claim any amount.
+        // Rule 1 (fail-closed core): an amount we cannot determine (amountless,
+        // unparseable, or <= 0) is refused even when NO ceiling is configured.
+        // Previously the method short-circuited on `max == null` and paid ANY
+        // invoice, so a caller who merely forgot to set a ceiling handed the
+        // wallet an unbounded, unaudited spend. Such an amount cannot be proven
+        // bounded and must never be read as "no limit applies".
         if (amountSats == null || amountSats <= 0)
         {
             throw new InvalidOperationException(
-                $"Invoice has no amount specified. For security, only invoices with " +
-                $"explicit amounts are supported when MaxAmountSats ({max} sats) is set. " +
+                $"Invoice has no amount specified (amountless, unparseable, or <= 0). " +
+                $"An amount that cannot be bounded is refused even when MaxAmountSats " +
+                $"is not set: paying it would hand the wallet an unbounded amount. " +
                 $"Invoice: {Truncate(challenge.Invoice)}");
         }
 
-        if (amountSats > max)
+        // Rule 2: enforce the ceiling only when one was configured. A known
+        // positive amount with no ceiling is the caller's documented opt-out.
+        if (max != null && amountSats > max)
         {
             throw new InvalidOperationException(
                 $"Invoice amount ({amountSats} sats) exceeds maximum allowed ({max} sats). " +

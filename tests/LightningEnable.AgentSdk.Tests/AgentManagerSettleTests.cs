@@ -142,6 +142,62 @@ public class AgentManagerSettleTests
     }
 
     [Fact]
+    public async Task SettleAsync_RefusesAnAmountlessInvoiceEvenWhenNoMaximumIsConfigured()
+    {
+        // Ledger #71 (fail-closed core): with NO MaxAmountSats configured, an
+        // invoice whose amount cannot be determined used to be PAID — the gate
+        // short-circuited on `max == null` and handed ANY invoice to the wallet,
+        // so a caller who merely forgot to set a ceiling delegated an unbounded,
+        // unaudited spend. An amount that cannot be bounded must be refused
+        // regardless of whether a ceiling is set.
+        var payCalled = false;
+        var options = new AgentManagerOptions
+        {
+            PrivateKey = TestPrivateKey,
+            HttpClient = new HttpClient(new L402Endpoint("lnbc1amountless")),
+            // MaxAmountSats deliberately left unset (null).
+            PayInvoiceCallback = (invoice, ct) =>
+            {
+                payCalled = true;
+                return Task.FromResult(Preimage);
+            }
+        };
+        var manager = new AgentManager(options);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => manager.SettleAsync(Agreement()));
+        Assert.Contains("no amount", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(payCalled);
+    }
+
+    [Fact]
+    public async Task SettleAsync_PaysAKnownAmountWhenNoMaximumIsConfigured()
+    {
+        // The other half of ledger #71: the fail-closed fix must not force every
+        // payment to declare a max. lnbc100u = 10,000 sats is a determinable
+        // amount; with no ceiling the caller has opted out of a limit for a
+        // KNOWN amount, so it is paid.
+        var paidInvoices = new List<string>();
+        var options = new AgentManagerOptions
+        {
+            PrivateKey = TestPrivateKey,
+            HttpClient = new HttpClient(new L402Endpoint()),
+            // MaxAmountSats deliberately left unset (null).
+            PayInvoiceCallback = (invoice, ct) =>
+            {
+                paidInvoices.Add(invoice);
+                return Task.FromResult(Preimage);
+            }
+        };
+        var manager = new AgentManager(options);
+
+        var result = await manager.SettleAsync(Agreement());
+
+        Assert.True(result.Success);
+        Assert.Equal(new[] { "lnbc100u1rest" }, paidInvoices);
+    }
+
+    [Fact]
     public async Task SettleAsync_PaysAnInvoiceWithinTheConfiguredMaximum()
     {
         var options = new AgentManagerOptions
