@@ -25,14 +25,19 @@ public class AgentCapability
     public const int Kind = 38400;
 
     /// <summary>
-    /// Parse a satoshi amount from a tag value.
+    /// Parse a non-negative satoshi amount from a tag value.
     /// </summary>
     /// <remarks>
     /// Rejects the capability rather than falling back to a default. int.TryParse
     /// leaves the amount at 0 when it fails, which reads as FREE — so a malformed
     /// or hostile price tag would advertise a paid service as costing nothing.
+    /// A negative amount is rejected on the same throw path (ledger #69): a negative
+    /// advertised price/floor is never meaningful and accepting it is a fail-open
+    /// smell, so it is treated like any other malformed amount (the event is skipped
+    /// by discover). Zero is valid (a free service). Shared by BOTH the price and
+    /// negotiable-floor parse so the two can never drift apart.
     /// </remarks>
-    /// <exception cref="FormatException">The value is not a plain integer.</exception>
+    /// <exception cref="FormatException">The value is not a non-negative integer.</exception>
     private static int ParseSats(string value, string tagName)
     {
         if (!int.TryParse(value, System.Globalization.NumberStyles.AllowLeadingSign,
@@ -40,6 +45,12 @@ public class AgentCapability
         {
             throw new FormatException(
                 $"Invalid {tagName} tag: \"{value}\" is not a valid integer amount of sats.");
+        }
+
+        if (sats < 0)
+        {
+            throw new FormatException(
+                $"Invalid {tagName} tag: \"{value}\" is negative; a sats amount must be non-negative.");
         }
 
         return sats;
